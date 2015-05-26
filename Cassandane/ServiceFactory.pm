@@ -67,6 +67,12 @@ sub create
 				argv => ['sync_server'],
 				%params);
     }
+    elsif ($name =~ m/http/)
+    {
+	return Cassandane::Service->new(
+				argv => ['httpd'],
+				%params);
+    }
     elsif ($name =~ m/lmtp/)
     {
 	return Cassandane::Service->new(
