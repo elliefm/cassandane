@@ -184,6 +184,9 @@ magic(Admin => sub {
 magic(NoStartInstances => sub {
     shift->want('start_instances' => 0);
 });
+magic(AllowMoves => sub {
+    shift->config_set('allowusermoves' => 'yes');
+});
 
 # Run any magic handlers indicated by the test name or attributes
 sub _run_magic
