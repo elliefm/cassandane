@@ -43,6 +43,7 @@ package Cassandane::Instance;
 use strict;
 use warnings;
 use Config;
+use Errno qw(ENOENT);
 use File::Path qw(mkpath rmtree);
 use File::Find qw(find);
 use File::Basename;
@@ -372,7 +373,7 @@ sub _find_binary
 	}
 	else
 	{
-	    xlog "Couldn't opendir $dir: $!";
+	    xlog "Couldn't opendir $dir: $!" if $! != ENOENT;
 	    next;
 	}
     }
