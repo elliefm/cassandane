@@ -375,6 +375,55 @@ sub test_badscript_timsieved
     $self->badscript_common();
 }
 
+sub bugzilla_3904_common
+{
+    my ($self) = @_;
+
+    xlog "Testing sieve script from 3904";
+
+    my $script = << 'ENDSCRIPT';
+require ["imap4flags","regex"];
+
+# rule:[IPv6Test]
+if header :regex :comparator "i;ascii-casemap" "received"
+"(from).+\\[IPv6:.*([[:space:]]*.*)*(by mx1\\.domain\\.tld)"
+{
+        addflag ["$label6"];
+}
+# rule:[TLSTest]
+if header :regex "received" "(from).+[[:space:]]+\\(using
+TLS.+([[:space:]]*.*)*(by mx1\\.domain\\.tld)"
+{
+        addflag ["$label7"];
+}
+ENDSCRIPT
+
+    my ($res, $errs) = $self->compile_sieve_script('3904', $script);
+    xlog "res: $res, errs: $errs";
+
+    return ($res, $errs);
+}
+
+sub test_3904_sievec
+{
+    my ($self) = @_;
+
+    $self->{compile_method} = 'sievec';
+    my ($res, $errs) = $self->bugzilla_3904_common();
+
+    $self->assert(0);
+}
+
+sub test_3904_timsieved
+{
+    my ($self) = @_;
+
+    $self->{compile_method} = 'timsieved';
+    my ($res, $errs) = $self->bugzilla_3904_common();
+
+    $self->assert(0);
+}
+
 sub test_dup_keep_keep
 {
     my ($self) = @_;
