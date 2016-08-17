@@ -1369,7 +1369,7 @@ sub test_quota_f_prefix
 			 storage => int($exp_baseplus/1024));
 }
 
-sub bogus_test_upgrade_v2_4
+sub test_upgrade_v2_4
 {
     my ($self) = @_;
 
@@ -1386,7 +1386,9 @@ sub bogus_test_upgrade_v2_4
     xlog "store annotations";
     my $data = $self->make_random_data(10);
     my $expected_annotation_storage = length($data);
-    $talk->setmetadata($self->{store}->{folder}, '/private/comment', { Quote => $data });
+#    $talk->setmetadata($self->{store}->{folder}, '/private/comment', { Quote => $data });
+    # XXX why does this contain 'inbox' rather than 'INBOX'?
+    $talk->setmetadata('INBOX', '/private/comment', { Quote => $data });
     $self->assert_str_equals('ok', $talk->get_last_completion_response());
     $self->_check_usages('x-annotation-storage' => int($expected_annotation_storage/1024));
 
