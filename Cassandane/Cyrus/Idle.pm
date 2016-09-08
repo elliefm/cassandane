@@ -536,6 +536,103 @@ sub test_sigterm_many
     }
 }
 
+sub common_timeout
+{
+    my ($self) = @_;
 
+    my $svc = $self->{instance}->get_service('imap');
+
+    my $store = $svc->create_store(folder => 'INBOX');
+    my $talk = $store->get_client();
+    $store->_select();
+
+    xlog "The server should report the IDLE capability";
+    $self->assert($talk->capability()->{idle});
+
+    xlog "Sending the IDLE command";
+    $store->idle_begin()
+	or die "IDLE failed: $@";
+
+    xlog "Poll for any unsolicited response - should be none";
+    my $r = $store->idle_response({}, 0);
+    $self->assert(!$r, "No unsolicted response");
+
+    xlog "Sending DONE continuation";
+    $store->idle_end({});
+    $self->assert_str_equals('ok', $talk->get_last_completion_response());
+
+    xlog "Testing that normal IMAP commands still work";
+    my $res = $talk->status('INBOX', '(messages unseen)');
+    $self->assert_deep_equals({ messages => 0, unseen => 0 }, $res);
+
+    xlog "Sending another IDLE command";
+    $store->idle_begin()
+	or die "IDLE failed: $@";
+
+    xlog "Wait a bit, but don't exceed timeout";
+    sleep(2);
+
+    xlog "Sending DONE continuation";
+    $store->idle_end({});
+    $self->assert_str_equals('ok', $talk->get_last_completion_response());
+
+    xlog "Testing that normal IMAP commands still work";
+    $res = $talk->status('INBOX', '(messages unseen)');
+    $self->assert_deep_equals({ messages => 0, unseen => 0 }, $res);
+
+    xlog "Sending final IDLE command";
+    $store->idle_begin()
+	or die "IDLE failed: $@";
+
+    xlog "Wait a bit, exceeding timeout";
+    sleep(6);
+
+    xlog "Expecting connection to no longer be open";
+    my $is_open = $talk->is_open();
+    $self->assert_null($is_open);
+}
+
+sub test_timeout_idled
+    :min_version_3_0
+{
+    my ($self) = @_;
+
+    xlog "Test of the IDLE command with a timeout, idled started";
+
+    $self->{instance}->{config}->set(imapidlepoll => '2',
+				     imapidletimeout => '4');
+    $self->{instance}->add_start(name => 'idled',
+				 argv => [ 'idled' ]);
+    $self->{instance}->start();
+    $self->common_timeout();
+}
+
+sub test_timeout_noidled
+    :min_version_3_0
+{
+    my ($self) = @_;
+
+    xlog "Test of the IDLE command with a timeout, no idled started";
+
+    $self->{instance}->{config}->set(imapidlepoll => '2',
+				     imapidletimeout => '4');
+    $self->{instance}->start();
+    $self->common_timeout();
+}
+
+sub test_timeout_abortedidled
+    :min_version_3_0
+{
+    my ($self) = @_;
+
+    xlog "Test of the IDLE command with a timeout, idled started but aborted";
+
+    $self->{instance}->{config}->set(imapidlepoll => '2',
+				     imapidletimeout => '4');
+    $self->{instance}->start();
+    $self->start_and_abort_idled();
+
+    $self->common_timeout();
+}
 
 1;
