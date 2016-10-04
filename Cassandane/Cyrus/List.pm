@@ -1107,6 +1107,13 @@ sub test_virtdomains_return_subscribed_altns
 
     $footalk->subscribe("Other Users/bar/shared-folder");
 
+    $admintalk->create("another-namespace");
+    $admintalk->create("another-namespace/folder");
+    $admintalk->setacl("another-namespace/folder",
+		       'foo@example.com' => 'lrswipkxtecd');
+
+    $footalk->subscribe("Shared Folders/another-namespace/folder");
+
     my $alldata = $footalk->list("", "*", 'RETURN', [qw(SUBSCRIBED)]);
 
     xlog Dumper $alldata;
@@ -1162,6 +1169,13 @@ sub test_virtdomains_return_subscribed_noaltns
 		       'foo@example.com' => 'lrswipkxtecd');
 
     $footalk->subscribe("user/bar/shared-folder");
+
+    $admintalk->create("another-namespace");
+    $admintalk->create("another-namespace/folder");
+    $admintalk->setacl("another-namespace/folder",
+		       'foo@example.com' => 'lrswipkxtecd');
+
+    $footalk->subscribe("Shared Folders/another-namespace/folder");
 
     my $alldata = $footalk->list("", "*", 'RETURN', [qw(SUBSCRIBED)]);
 
