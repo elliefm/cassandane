@@ -79,9 +79,9 @@ sub tear_down
 
 sub _install_test_data
 {
-    my ($self, $test_data) = @_;
+    my ($self, $test_data, $imaptalk) = @_;
 
-    my $imaptalk = $self->{store}->get_client();
+    $imaptalk //= $self->{store}->get_client();
 
     foreach my $row (@{$test_data}) {
 	my ($cmd, $arg) = @{$row};
@@ -1331,31 +1331,36 @@ sub test_delete_unsubscribe
 
 # based on https://github.com/cyrusimap/cyrus-imapd/issues/1843
 sub test_dash_children
-    :UnixHierarchySep :AltNamespace
+    :UnixHierarchySep :AltNamespace :VirtDomains
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
-	[ 'subscribe' => 'INBOX' ],
-	[ 'create'    => [qw( office office/Spam )] ],
-	[ 'subscribe' => [qw( office office/Spam )] ],
-    ]);
+    my $admintalk = $self->{adminstore}->get_client();
 
-    my $imaptalk = $self->{store}->get_client();
+    $self->_install_test_data(
+	[
+	    [ 'create'    => [qw( office office/Spam )] ],
+	    [ 'subscribe' => [qw( office office/Spam )] ],
+	],
+	$admintalk,
+    );
 
-    my $data = $imaptalk->list("", "office*");
+    my $data = $admintalk->list("", "office*");
 
     $self->_assert_list_data($data, '/', {
 	'office'      => '\\HasChildren',
 	'office/Spam' => '\\HasNoChildren',
     });
 
-    $self->_install_test_data([
-	[ 'create'    => [qw( office-sent )] ],
-	[ 'subscribe' => [qw( office-sent )] ],
-    ]);
+    $self->_install_test_data(
+	[
+	    [ 'create'    => [qw( office-sent )] ],
+	    [ 'subscribe' => [qw( office-sent )] ],
+	],
+	$admintalk,
+    );
 
-    $data = $imaptalk->list("", "office*");
+    $data = $admintalk->list("", "office*");
 
     $self->_assert_list_data($data, '/', {
 	'office'      => '\\HasChildren',
