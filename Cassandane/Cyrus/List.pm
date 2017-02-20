@@ -1329,4 +1329,39 @@ sub test_delete_unsubscribe
     });
 }
 
+# based on https://github.com/cyrusimap/cyrus-imapd/issues/1843
+sub test_dash_children
+    :UnixHierarchySep :AltNamespace
+{
+    my ($self) = @_;
+
+    $self->_install_test_data([
+	[ 'subscribe' => 'INBOX' ],
+	[ 'create'    => [qw( office office/Spam )] ],
+	[ 'subscribe' => [qw( office office/Spam )] ],
+    ]);
+
+    my $imaptalk = $self->{store}->get_client();
+
+    my $data = $imaptalk->list("", "office*");
+
+    $self->_assert_list_data($data, '/', {
+	'office'      => '\\HasChildren',
+	'office/Spam' => '\\HasNoChildren',
+    });
+
+    $self->_install_test_data([
+	[ 'create'    => [qw( office-sent )] ],
+	[ 'subscribe' => [qw( office-sent )] ],
+    ]);
+
+    $data = $imaptalk->list("", "office*");
+
+    $self->_assert_list_data($data, '/', {
+	'office'      => '\\HasChildren',
+	'office/Spam' => '\\HasNoChildren',
+	'office-sent' => '\\HasNoChildren',
+    });
+}
+
 1;
