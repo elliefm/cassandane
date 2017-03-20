@@ -201,7 +201,7 @@ read_line_from_client(void)
 	    break;	/* have a whole line */
     }
     close(fd);
-//     syslog(LOG_ERR, "read total of %d bytes", len);
+     syslog(LOG_ERR, "read total of %d bytes", len);
 
     /* nul-terminate and trim the line */
     line[len] = '\0';

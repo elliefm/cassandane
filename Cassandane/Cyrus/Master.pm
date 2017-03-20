@@ -43,6 +43,7 @@ package Cassandane::Cyrus::Master;
 use strict;
 use warnings;
 use POSIX qw(getcwd);
+use Data::Dumper;
 use DateTime;
 
 use lib '.';
@@ -208,10 +209,13 @@ sub lemming_wait
 {
     my ($self, %expected_census) = @_;
 
+#    $self->lemming_wait(foo => { live => 2, dead => 2 });
+    xlog "waiting for: " . Dumper \%expected_census;
     timed_wait(
 	sub
 	{
 	    my $census = $self->lemming_census();
+	    xlog "census: " . Dumper $census;
 	    map {
 		my $service_name = $_;
 		return 0 if !defined $census->{$service_name};
@@ -1048,6 +1052,7 @@ sub test_sighup_recycling
 	$self->lemming_census());
 
     $self->{instance}->send_sighup();
+    # XXX sometimes times out here?
     $self->lemming_wait(foo => { live => 2, dead => 2 });
 
     xlog "recycled, again so expect one more dead lemming";
