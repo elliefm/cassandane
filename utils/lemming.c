@@ -85,6 +85,7 @@ static void no_cores(void)
 
 static void sighup_handler(int sig __attribute__((unused)))
 {
+    syslog(LOG_DEBUG, "%s: got SIGHUP", __func__);
     gotsighup = 1;
 }
 
@@ -158,6 +159,7 @@ read_line_from_client(void)
     set_sighup_handler(0);
     fd = accept(LISTEN_FD, NULL, NULL);
     set_sighup_handler(1);
+    syslog(LOG_DEBUG, "%s: after accept, fd=%d, gotsighup=%d", __func__, fd, gotsighup);
     if (fd < 0)
     {
 	if (gotsighup) {
@@ -307,6 +309,10 @@ main(int argc, char **argv)
 	mode = read_line_from_client();
     else if (delay_ms)
 	poll(NULL, 0, delay_ms);
+
+    if (gotsighup) {
+	syslog(LOG_DEBUG, "%s: gotsighup is %d", __func__, gotsighup);
+    }
 
     if (!strcmp(mode, "success"))
     {
