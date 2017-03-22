@@ -170,7 +170,9 @@ read_line_from_client(void)
 	exit(1);
     }
 
+    syslog(LOG_DEBUG, "%s: before tell_master, gotsighup=%d", __func__, gotsighup);
     tell_master(MASTER_SERVICE_UNAVAILABLE);
+    syslog(LOG_DEBUG, "%s: after tell_master, gotsighup=%d", __func__, gotsighup);
 
     /* write out our pid, the Perl test code wants it */
     n = write(fd, &pid, sizeof(pid));
@@ -188,7 +190,9 @@ read_line_from_client(void)
     /* read the command line from the Perl test code */
     for (;;)
     {
+	syslog(LOG_DEBUG, "%s: before read, gotsighup=%d", __func__, gotsighup);
 	n = read(fd, line+len, maxlen-len);
+	syslog(LOG_DEBUG, "%s: after read, gotsighup=%d", __func__, gotsighup);
 // 	syslog(LOG_ERR, "read returned %d", n);
 	if (n < 0)
 	{
@@ -209,6 +213,8 @@ read_line_from_client(void)
     line[len] = '\0';
     while (len > 0 && isspace(line[len-1]))
 	line[--len] = '\0';
+
+    syslog(LOG_ERR, "read line: %s", line);
 
     return line;
 }
@@ -238,10 +244,15 @@ main(int argc, char **argv)
     struct sockaddr_storage localaddr;
     struct sockaddr *localsock = (struct sockaddr *)&localaddr;
     int family = AF_UNSPEC;
+    int r;
+
+    syslog(LOG_DEBUG, "%s: at startup, gotsighup=%d", __func__, gotsighup);
 
     /* don't interrupt me on SIGHUP */
     set_sighup_handler(1);
     no_cores();
+
+    syslog(LOG_DEBUG, "%s: blocked interruptions, gotsighup=%d", __func__, gotsighup);
 
     /* parse arguments */
     while ((c = getopt(argc, argv, "C:d:m:t:")) > 0)
@@ -271,6 +282,7 @@ main(int argc, char **argv)
 
     snprintf(filename, sizeof(filename), "lemming.%s.%d", tag, (int)getpid());
     creat(filename, 0644);
+    syslog(LOG_DEBUG, "%s: created %s", __func__, filename);
 
     salen = sizeof(struct sockaddr_storage);
     if (!getsockname(LISTEN_FD, localsock, &salen)) {
@@ -304,15 +316,19 @@ main(int argc, char **argv)
 	    break;
 	}
     }
+    syslog(LOG_DEBUG, "%s: determined socket family", __func__);
 
-    if (!strcmp(mode, "serve"))
+    syslog(LOG_DEBUG, "%s: mode='%s', delay_ms=%d", __func__, mode, delay_ms);
+    if (!(r = strcmp(mode, "serve"))) {
+	syslog(LOG_DEBUG, "%s: strcmp returned %d, about to read_line_etc", __func__, r);
 	mode = read_line_from_client();
-    else if (delay_ms)
-	poll(NULL, 0, delay_ms);
-
-    if (gotsighup) {
-	syslog(LOG_DEBUG, "%s: gotsighup is %d", __func__, gotsighup);
     }
+    else if (delay_ms) {
+	syslog(LOG_DEBUG, "%s: strcmp returned %d, about to poll", __func__, r);
+	poll(NULL, 0, delay_ms);
+    }
+
+    syslog(LOG_DEBUG, "%s: after read/poll, gotsighup is %d", __func__, gotsighup);
 
     if (!strcmp(mode, "success"))
     {
