@@ -150,4 +150,35 @@ sub test_aaasetup
     $self->assert_equals($version, $result->{'.1.3.6.1.4.1.3.6.1.1.2.0'});
 }
 
+sub test_aabexperiment
+{
+    my ($self) = @_;
+
+    my ($session, $error) = Net::SNMP->session(
+	-hostname => 'localhost',
+	-port => '161',
+    );
+
+    xlog "session: " . Dumper $session;
+    xlog "error: " . Dumper $error;
+
+    my $foo = $session->get_table(
+	-baseoid => ".1.3.6.1.4.1.3.6.1",
+    );
+
+    $self->assert_equals("", $session->error());
+
+    xlog "foo: " . Dumper $foo;
+
+    my $bar = $session->get_request(
+	-varbindlist => ['.1.3.6.1.4.1.3.6.1.1.2.0'],
+    );
+
+    $self->assert_equals("", $session->error());
+    xlog "bar: " . Dumper $bar;
+
+    my $vs = Cassandane::Instance->get_version($self->{instance}->{installation});
+    xlog "vs: " . Dumper $vs;
+}
+
 1;
