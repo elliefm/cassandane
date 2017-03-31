@@ -123,6 +123,11 @@ Cassandane needs the following software to work:
     64 bit integer module for calculating conversation IDs
     cpan Math::Int64
 
+ * Net::SNMP
+    Object oriented interface to SNMP
+    Ubuntu package libnet-snmp-perl
+    cpan Net::SNMP
+
 
 Debian/Ubuntu copypasta:
   sudo apt-get -y install liburi-perl libdigest-sha-perl \
@@ -138,7 +143,7 @@ Debian/Ubuntu copypasta:
        libmime-types-perl libtext-levenshteinxs-perl \
        libdatetime-format-ical-perl libuniversal-require-perl \
        libtest-nowarnings-perl libtest-longstring-perl \
-       libtest-warn-perl
+       libtest-warn-perl libnet-snmp-perl
 
   sudo cpan Math::Int64 Mail::JMAPTalk Mail::IMAPTalk \
        Net::CalDAVTalk Net::CardDAVTalk String::CRC32

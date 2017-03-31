@@ -41,6 +41,7 @@ package Cassandane::Cyrus::SNMP;
 use strict;
 use warnings;
 use Data::Dumper;
+use Net::SNMP;
 
 use lib '.';
 use base qw(Cassandane::Cyrus::TestCase);
