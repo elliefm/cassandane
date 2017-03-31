@@ -41,6 +41,8 @@ package Cassandane::Cyrus::SNMP;
 use strict;
 use warnings;
 use Data::Dumper;
+use Errno qw(ENOENT);
+use JSON;
 use Net::SNMP;
 
 use lib '.';
@@ -50,10 +52,66 @@ use Cassandane::Instance;
 
 $Data::Dumper::Sortkeys = 1;
 
+my $have_snmp;
+
+sub init
+{
+    my $cassini = Cassandane::Cassini->instance();
+    my $agentxsocket = $cassini->val('snmp', 'agentxsocket');
+    my $destdir = $cassini->val('cyrus default', 'destdir', '');
+    my $prefix = $cassini->val('cyrus default', 'prefix', '');
+
+    return if not $agentxsocket;
+    if (-S $agentxsocket) {
+	return if not -r $agentxsocket;
+	return if not -w $agentxsocket;
+    }
+
+    my $cyr_buildinfo;
+    my $base = $destdir . $prefix;
+    die "cannot find base directory" if not $base;
+    foreach (qw( bin sbin libexec libexec/cyrus-imapd lib cyrus/bin )) {
+	my $dir = "$base/$_";
+	if (opendir my $dh, $dir)
+	{
+	    if (grep { $_ eq 'cyr_buildinfo' } readdir $dh) {
+		$cyr_buildinfo = "$dir/cyr_buildinfo";
+	    }
+	    closedir $dh;
+	}
+	else
+	{
+	    xlog "Couldn't opendir $dir: $!" if $! != ENOENT;
+	    next;
+	}
+    }
+
+    return if not $cyr_buildinfo;
+
+    local $/;
+    open my $fh, '-|', $cyr_buildinfo or die "cannot exec $cyr_buildinfo: $!";
+    my $buildinfo = JSON::decode_json(<$fh>);
+    close $fh;
+
+    return if not $buildinfo->{component}->{snmp};
+
+    $have_snmp = 1;
+}
+init;
+
 sub new
 {
     my $class = shift;
     return $class->SUPER::new({}, @_);
+}
+
+sub list_tests
+{
+    my $class = shift;
+
+    return ('snmp_is_not_available') if not $have_snmp;
+
+    return $class->SUPER::list_tests();
 }
 
 sub set_up
@@ -68,12 +126,28 @@ sub tear_down
     $self->SUPER::tear_down();
 }
 
+sub snmp_is_not_available { }  # nothing to do
+
 sub test_aaasetup
 {
     my ($self) = @_;
 
-    # does everything set up and tear down cleanly?
-    $self->assert(1);
+    # make sure everything sets up, tears down, and finds the right version
+
+    my ($session, $error) = Net::SNMP->session(
+	-hostname => 'localhost',
+	-port => '161',
+    );
+    $self->assert_equals("", $error);
+
+    my $result = $session->get_request(
+	-varbindlist => ['.1.3.6.1.4.1.3.6.1.1.2.0'],
+    );
+    $self->assert_equals("", $session->error());
+
+    my $version = Cassandane::Instance->get_version($self->{instance}->{installation});
+    $self->assert($version);
+    $self->assert_equals($version, $result->{'.1.3.6.1.4.1.3.6.1.1.2.0'});
 }
 
 1;

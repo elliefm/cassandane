@@ -131,6 +131,13 @@
 ##sasl_mech_list = PLAIN LOGIN
 ##debug_command = @prefix@/utils/gdbtramp %s %d
 
+# This section describes how Cassandane interacts with your system's SNMP
+# setup.  If the agentxsocket is set, we can test SNMP functionality.
+[snmp]
+# The agentxsocket that Cyrus should connect to.  If this is a unix domain
+# socket, it must be readable and writeable by the cyrus user.
+## agentxsocket =
+
 # This section describes how Cassandane interacts with the Net::CalDAVTalk
 # module.  If the basedir is set, we can test the built in API tests against
 # cyrus's CalDAV support for event+json

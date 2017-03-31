@@ -839,6 +839,9 @@ sub _start_master
 	    if $srv->is_listening();
     }
 
+    # Check if we have SNMP configuration
+    my $agentxsocket = Cassandane::Cassini->instance()->val('snmp', 'agentxsocket');
+
     # Now start the master process.
     my @cmd =
     (
@@ -854,6 +857,10 @@ sub _start_master
 	my $logfile = $self->{basedir} . '/conf/master.log';
 	xlog "_start_master: logging to $logfile";
 	push(@cmd, '-L', $logfile);
+    }
+    if ($agentxsocket) {
+	xlog "_start_master: using AgentX socket $agentxsocket";
+	push(@cmd, '-x', $agentxsocket);
     }
     unlink $self->_pid_file();
     # Start master daemon
