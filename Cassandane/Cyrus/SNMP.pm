@@ -102,7 +102,7 @@ init;
 sub new
 {
     my $class = shift;
-    return $class->SUPER::new({}, @_);
+    return $class->SUPER::new({ deliver => 1, }, @_);
 }
 
 sub list_tests
