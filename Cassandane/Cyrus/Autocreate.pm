@@ -64,6 +64,7 @@ sub new
     return $class->SUPER::new({
 	config => $config,
 	adminstore => 1,
+	deliver => 1,
     }, @_);
 }
 
@@ -113,6 +114,20 @@ sub test_autocreate_specialuse
         $self->assert_str_equals("INBOX.$name", $item->[2]);
     }
     $self->assert_num_equals(0, scalar keys %map);
+}
+
+sub test_autocreate_delivery_murder
+    :Murder
+{
+    my ($self) = @_;
+    return unless $self->{test_autocreate};
+
+    my %msgs;
+    $msgs{1} = $self->{gen}->generate(subject => "Message for newuser");
+    $msgs{1}->set_attribute(uid => 1);
+    $self->{frontend}->deliver($msgs{1}, user => 'autocreated_user');
+
+#    $self->check_messages(\%msgs, check_guid => 0, keyed_on => 'uid');
 }
 
 1;
