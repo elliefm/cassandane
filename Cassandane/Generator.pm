@@ -49,6 +49,7 @@ use Cassandane::Util::DateTime qw(to_rfc822 from_iso8601);
 use Cassandane::Address;
 use Cassandane::Message;
 use Cassandane::Util::SHA;
+use Cassandane::Util::Log;
 
 our $admin = 'qa@cyrus.works';
 
@@ -280,7 +281,9 @@ sub generate
 {
     my ($self, @aparams) = @_;
     my $params = $self->_params_defaults(@aparams);
+    xlog "entered generate with date param '$params->{date}'";
     my $datestr = to_rfc822($params->{date});
+    xlog "generating message with datestr '$datestr'";
     my $from = $params->{from};
     my $to = $params->{to};
     my $extra_lines = $params->{extra_lines};

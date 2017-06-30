@@ -432,6 +432,7 @@ sub set_internaldate
     {
 	$id = to_rfc3501($id);
     }
+    xlog "setting internaldate to '$id'";
     $self->set_attribute(internaldate => $id);
 }
 
