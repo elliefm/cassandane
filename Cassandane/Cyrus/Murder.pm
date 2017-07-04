@@ -52,7 +52,9 @@ $Data::Dumper::Sortkeys = 1;
 sub new
 {
     my $class = shift;
-    return $class->SUPER::new({ murder => 1, adminstore => 1 }, @_);
+    my $config = Cassandane::Config->default()->clone();
+    $config->set(annotation_allow_undefined => 1);
+    return $class->SUPER::new({ murder => 1, adminstore => 1, config => $config }, @_);
 }
 
 sub set_up
@@ -356,6 +358,55 @@ sub test_rename_with_location
     my $backend2_store = $self->{backend2_store}->get_client();
     $backend2_store->select('INBOX');
     $self->assert_str_equals('ok', $backend2_store->get_last_completion_response());
+}
+
+# annotatemore extension decommissioned in 3.1
+sub test_annotatemore
+    :max_version_3_0
+{
+    my ($self) = @_;
+
+    my $backend_adminstore = $self->{backend1_adminstore}->get_client();
+    $backend_adminstore->setacl('user.cassandane', 'cassandane', 'lrswipkxtecdan');
+
+    my $backend = $self->{backend1_store}->get_client();
+    my $caps = $backend->capability();
+
+    if ($caps->{"annotatemore"}) {
+	xlog "trying on backend...";
+	my $res = $backend->getannotation("INBOX", "/vendor/cmu/cyrus-imapd/condstore", "value.shared");
+	xlog "getannotation: " . Dumper $res || $@;
+	$self->assert_not_null($res);
+	$self->assert_str_equals('ok', $backend->get_last_completion_response());
+
+	$res = $backend->setannotation("INBOX", "/vendor/cmu/cyrus-imapd/condstore",
+				      [ 'value.shared', 'true' ]);
+	xlog "setannotation: " . Dumper $res || $@;
+	$self->assert_str_equals('ok', $backend->get_last_completion_response());
+    }
+    else {
+	xlog "backend does not provide ANNOTATEMORE capability";
+    }
+
+    my $frontend = $self->{frontend_store}->get_client();
+
+    $caps = $frontend->capability();
+
+    if ($caps->{"annotatemore"}) {
+	xlog "trying on frontend...";
+	my $res = $frontend->getannotation("INBOX", "/vendor/cmu/cyrus-imapd/condstore", "value.shared");
+	xlog "getannotation: " . Dumper $res || $@;
+	$self->assert_not_null($res);
+	$self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+	$res = $frontend->setannotation("INBOX", "/vendor/cmu/cyrus-imapd/condstore",
+				      [ 'value.shared', 'true' ]);
+	xlog "setannotation: " . Dumper $res || $@;
+	$self->assert_str_equals('ok', $frontend->get_last_completion_response());
+    }
+    else {
+	xlog "frontend does not provide ANNOTATEMORE capability";
+    }
 }
 
 1;
