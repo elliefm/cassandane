@@ -95,6 +95,36 @@ sub test_uniqueid
     $talk->list('', '*', 'return', [ "status", [ "mailboxid" ] ]);
 }
 
+sub test_status
+{
+    my ($self) = @_;
+
+    my $talk = $self->{store}->get_client();
+
+    $talk->create('inbox.foo');
+    my $status = $talk->status('inbox.foo', '(donut)');
+    xlog "status: " . Dumper $status;
+    $self->assert_equals('bad', $talk->get_last_completion_response());
+
+    $talk->status('inbox.foo', '(messages)');
+    $self->assert_equals('ok', $talk->get_last_completion_response());
+}
+
+sub test_list_status
+{
+    my ($self) = @_;
+
+    my $talk = $self->{store}->get_client();
+
+    $talk->create('inbox.foo');
+
+    $talk->list('', '*', 'return', [ 'status', [ 'donut' ] ]);
+    $self->assert_equals('bad', $talk->get_last_completion_response());
+
+    $talk->list('', '*', 'return', [ 'status', [ 'messages' ] ]);
+    $self->assert_equals('ok', $talk->get_last_completion_response());
+}
+
 #
 # Test uniqueid and rename
 #
