@@ -261,4 +261,22 @@ sub test_setacl_badrights
     $self->assert_deep_equals($origacl, $newacl);
 }
 
+sub test_setacl_groupid
+{
+    my ($self) = @_;
+
+    my $admintalk = $self->{adminstore}->get_client();
+    my $talk = $self->{store}->get_client();
+
+    $talk->create("INBOX.groupid");
+    $self->assert_str_equals('ok', $talk->get_last_completion_response());
+
+    my $rights = "lrswipkxtecdan";
+    $admintalk->setacl("user.cassandane.groupid", "group:soccer",  $rights);
+    $self->assert_str_equals('ok', $admintalk->get_last_completion_response());
+
+    my $newacl = $admintalk->getacl("user.cassandane.groupid");
+    xlog "newacl: " . Dumper $newacl;
+}
+
 1;
