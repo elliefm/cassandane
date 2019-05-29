@@ -1912,7 +1912,9 @@ sub saslauthd
             my $Password = get_counted_string($client);
             my $Service = lc get_counted_string($client);
             my $Realm = get_counted_string($client);
-            xlog "authdaemon connection: $LoginName $Password $Service $Realm";
+            if (get_verbose()) {
+                xlog "authdaemon connection: $LoginName $Password $Service $Realm";
+            }
 
             # XXX - custom logic?
 
