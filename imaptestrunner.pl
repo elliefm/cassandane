@@ -13,7 +13,7 @@ use Cassandane::Cassini;
 use Cassandane::Util::Log;
 use Cassandane::Util::Setup;
 
-set_verbose(1);
+set_verbose(0);
 become_cyrus();
 
 my $cassini = Cassandane::Cassini->instance();
@@ -52,6 +52,7 @@ $instance->run_command({
         redirects => { stdout => $outfile, stderr => $errfile },
         workingdir => $logdir,
         handlers => {
+            signaled => sub { my (undef, $sig); $status = $sig; },
             exited_normally => sub { $status = 1; },
             exited_abnormally => sub { $status = 0; },
         },
@@ -63,11 +64,17 @@ $instance->run_command({
     "user2=" . "user2",
     "pass=" . $params->{password},
     "mbox=" . abs_path("data/dovecot-crlf"),
-#    "secs=30",
-    "checkpoint=1",
-    "own_msgs",
-    "own_flags",
     "rawlog",
+# XXX various arguments here do different things but the documentation
+# XXX is a bit woolly, and i've just been flipping things on and off
+# XXX and seeing what happens
+#    "secs=60",
+#    "checkpoint=1",
+#    "logout=0",
+#    "own_msgs",
+#    "own_flags",
+#    "expunge=5",
+#    "logout=1",
     "test=$testdir",
 );
 
