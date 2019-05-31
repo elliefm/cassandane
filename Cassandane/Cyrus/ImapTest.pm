@@ -41,8 +41,10 @@ package Cassandane::Cyrus::ImapTest;
 use strict;
 use warnings;
 use Cwd qw(abs_path);
-use File::Path qw(mkpath);
+use Data::Dumper;
 use DateTime;
+use Devel::Symdump;
+use File::Path qw(mkpath);
 
 use lib '.';
 use base qw(Cassandane::Cyrus::TestCase);
@@ -89,7 +91,7 @@ sub set_up
     my ($self) = @_;
     $self->SUPER::set_up();
 
-    $self->{instance}->create_user('user2', subdirs => ['imaptest']);
+    $self->{instance}->create_user('user2');
 }
 
 sub tear_down
@@ -100,6 +102,7 @@ sub tear_down
 
 sub list_tests
 {
+    my $class = ref($_[0]) || $_[0];
     my @tests;
 
     if (!defined $basedir)
@@ -107,6 +110,7 @@ sub list_tests
         return ( 'test_warning_imaptest_is_not_installed' );
     }
 
+    # find ImapTest's scripted tests (in its 'src/test' directory)
     opendir TESTS, $testdir
         or die "Cannot open directory $testdir: $!";
     while (my $e = readdir TESTS)
@@ -119,7 +123,62 @@ sub list_tests
     }
     closedir TESTS;
 
+    # find our own supplementary tests (in this module)
+    foreach my $f (Devel::Symdump->functions(__PACKAGE__)) {
+        $f = (split '::', $f)[-1];
+        next if $f !~ m/^test_/;
+        push @tests, $f;
+    }
+
     return @tests;
+}
+
+sub run_imaptest
+{
+    my ($self, @args) = @_;
+
+    my $logdir = "$self->{instance}->{basedir}/rawlog/";
+    mkdir($logdir);
+
+    my $svc = $self->{instance}->get_service('imap');
+    my $params = $svc->store_params();
+
+    my $errfile = $self->{instance}->{basedir} .  '/imaptest.stderr';
+    my $outfile = $self->{instance}->{basedir} .  '/imaptest.stdout';
+    my $status;
+    $self->{instance}->run_command({
+            redirects => { stderr => $errfile, stdout => $outfile },
+            workingdir => $logdir,
+            handlers => {
+                exited_normally => sub { $status = 0; },
+                exited_abnormally => sub { 
+                    my (undef, $code) = @_;
+                    xlog "imaptest exited with return code $code";
+                    $status = -$code;
+                },
+                signaled => sub {
+                    my (undef, $sig) = @_;
+                    xlog "imaptest exited with signal $sig";
+                    $status = $sig;
+                },
+            },
+        },
+        $binary,
+        "host=" . $params->{host},
+        "port=" . $params->{port},
+        "user=" . $params->{username},
+        "user2=" . "user2",
+        "pass=" . $params->{password},
+        "mbox=" . abs_path("data/dovecot-crlf"),
+        "rawlog",
+        @args);
+
+    return {
+        status => $status,
+        logdir => $logdir,
+        outfile => $outfile,
+        errfile => $errfile,
+    };
 }
 
 sub run_test
@@ -136,47 +195,31 @@ sub run_test
     }
 
     my $name = $self->name();
+    if ($self->can($name)) {
+        # if we have a perl test function, call that
+        return $self->$name();
+    }
+
     $name =~ s/^test_//;
 
-    my $logdir = "$self->{instance}->{basedir}/rawlog/";
-    mkdir($logdir);
+    my $result = $self->run_imaptest("test=$testdir/$name");
 
-    my $svc = $self->{instance}->get_service('imap');
-    my $params = $svc->store_params();
-
-    my $errfile = $self->{instance}->{basedir} .  "/$name.errors";
-    my $status;
-    $self->{instance}->run_command({
-            redirects => { stderr => $errfile },
-            workingdir => $logdir,
-            handlers => {
-                exited_normally => sub { $status = 1; },
-                exited_abnormally => sub { $status = 0; },
-            },
-        },
-        $binary,
-        "host=" . $params->{host},
-        "port=" . $params->{port},
-        "user=" . $params->{username},
-        "user2=" . "user2",
-        "pass=" . $params->{password},
-        "rawlog",
-        "test=$testdir/$name");
-
-    if ((!$status || get_verbose)) {
-        if (-f $errfile) {
-            open FH, '<', $errfile
-                or die "Cannot open $errfile for reading: $!";
+    if (($result->{status} || get_verbose)) {
+        if (-f $result->{errfile}) {
+            open FH, '<', $result->{errfile}
+                or die "Cannot open $result->{errfile} for reading: $!";
             while (readline FH) {
                 xlog $_;
             }
             close FH;
         }
-        opendir(DH, $logdir) or die "Can't open logdir $logdir";
+        opendir(DH, $result->{logdir})
+            or die "Can't open logdir $result->{logdir}";
         while (my $item = readdir(DH)) {
             next unless $item =~ m/^rawlog\./;
             print "============> $item <=============\n";
-            open(FH, '<', "$logdir/$item") or die "Can't open $logdir/$item";
+            open(FH, '<', "$result->{logdir}/$item")
+                or die "Can't open $result->{logdir}/$item";
             while (readline FH) {
                 print $_;
             }
@@ -184,7 +227,40 @@ sub run_test
         }
     }
 
-    $self->assert($status);
+    $self->assert_equals(0, $result->{status});
+}
+
+sub test_yadda
+{
+    my ($self) = @_;
+    xlog "we're in our custom test!"
+}
+
+sub test_wiki_status_checkpoint
+{
+    my ($self) = @_;
+
+    # run ImapTest in 'checkpoint' mode for a couple of minutes
+    my $result = $self->run_imaptest(qw(
+        secs=30
+        checkpoint=1
+    ));
+
+    if ($result->{status} != 0 || get_verbose()) {
+        # report the actual errors
+        if (-f $result->{errfile}) {
+            open my $fh, '<', $result->{errfile}
+                or die "$result->{errfile}: $!";
+            xlog $_ foreach <$fh>;
+            close $fh;
+        }
+
+        # XXX if very verbose, dump out the stdout (benchmark stats)?
+        # XXX if very verbose, dump out the rawlogs
+    }
+
+    $self->assert_equals(0, -s $result->{errfile});
+    $self->assert_equals(0, $result->{status});
 }
 
 1;
