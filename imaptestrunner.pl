@@ -69,7 +69,7 @@ $instance->run_command({
 # XXX is a bit woolly, and i've just been flipping things on and off
 # XXX and seeing what happens
 #    "secs=60",
-#    "checkpoint=1",
+    "checkpoint=1",
 #    "logout=0",
 #    "own_msgs",
 #    "own_flags",
@@ -77,6 +77,8 @@ $instance->run_command({
 #    "logout=1",
     "test=$testdir",
 );
+
+xlog "status: $status";
 
 $instance->stop();
 $instance->cleanup();
