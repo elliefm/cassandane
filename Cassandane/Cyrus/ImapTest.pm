@@ -137,48 +137,49 @@ sub run_imaptest
 {
     my ($self, @args) = @_;
 
-    my $logdir = "$self->{instance}->{basedir}/rawlog/";
-    mkdir($logdir);
-
     my $svc = $self->{instance}->get_service('imap');
     my $params = $svc->store_params();
 
-    my $errfile = $self->{instance}->{basedir} .  '/imaptest.stderr';
-    my $outfile = $self->{instance}->{basedir} .  '/imaptest.stdout';
-    my $status;
-    $self->{instance}->run_command({
-            redirects => { stderr => $errfile, stdout => $outfile },
-            workingdir => $logdir,
-            handlers => {
-                exited_normally => sub { $status = 0; },
-                exited_abnormally => sub { 
-                    my (undef, $code) = @_;
-                    xlog "imaptest exited with return code $code";
-                    $status = -$code;
-                },
-                signaled => sub {
-                    my (undef, $sig) = @_;
-                    xlog "imaptest exited with signal $sig";
-                    $status = $sig;
-                },
-            },
-        },
-        $binary,
-        "host=" . $params->{host},
-        "port=" . $params->{port},
-        "user=" . $params->{username},
-        "user2=" . "user2",
-        "pass=" . $params->{password},
-        "mbox=" . abs_path("data/dovecot-crlf"),
-        "rawlog",
-        @args);
+    my $r = {};
 
-    return {
-        status => $status,
-        logdir => $logdir,
-        outfile => $outfile,
-        errfile => $errfile,
+    $r->{logdir} = "$self->{instance}->{basedir}/rawlog/";
+    $r->{errfile} = $self->{instance}->{basedir} .  '/imaptest.stderr';
+    $r->{outfile} = $self->{instance}->{basedir} .  '/imaptest.stdout';
+
+    mkdir $r->{logdir};
+    eval {
+        $self->{instance}->run_command({
+                redirects => { stderr => $r->{errfile}, stdout => $r->{outfile} },
+                workingdir => $r->{logdir},
+#            handlers => {
+#                exited_normally => sub { $r->{code} = 0; },
+#                exited_abnormally => sub { 
+#                    my (undef, $code) = @_;
+#                    $r->{code} = $code;
+#                    die "imaptest exited with return code $code";
+#                },
+#                signaled => sub {
+#                    my (undef, $sig) = @_;
+#                    $r->{signal} = $sig;
+#                    die "imaptest exited with signal $sig";
+#                },
+#            },
+            },
+            $binary,
+            "host=" . $params->{host},
+            "port=" . $params->{port},
+            "user=" . $params->{username},
+            "user2=" . "user2",
+            "pass=" . $params->{password},
+            "mbox=" . abs_path("data/dovecot-crlf"),
+            "rawlog",
+            @args);
     };
+    if ($@) {
+        $r->{exception} = $@;
+    }
+
+    return $r;
 }
 
 sub run_test
@@ -246,7 +247,7 @@ sub test_wiki_status_checkpoint
         checkpoint=1
     ));
 
-    if ($result->{status} != 0 || get_verbose()) {
+    if (defined $result->{exception} || get_verbose()) {
         # report the actual errors
         if (-f $result->{errfile}) {
             open my $fh, '<', $result->{errfile}
@@ -259,6 +260,7 @@ sub test_wiki_status_checkpoint
         # XXX if very verbose, dump out the rawlogs
     }
 
+    $self->assert(not defined $result->{exception});
     $self->assert_equals(0, -s $result->{errfile});
     $self->assert_equals(0, $result->{status});
 }
