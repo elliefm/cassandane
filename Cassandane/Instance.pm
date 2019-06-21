@@ -58,6 +58,7 @@ use AnyEvent::Socket;
 use AnyEvent::Util;
 use JSON;
 use HTTP::Daemon;
+use Time::HiRes qw(sleep); # floating point sleep times
 
 use lib '.';
 use Cassandane::Util::DateTime qw(to_iso8601);
@@ -906,23 +907,40 @@ sub _start_master
 sub _start_authdaemon
 {
     my ($self) = @_;
-    my $pwcheck = $self->{_pwcheck};
 
-    my $basedir = $self->{basedir};
+    my $sockpath = "$self->{basedir}/run/mux";
+    unlink($sockpath);
 
-    my $saslpid = fork();
-    unless ($saslpid) {
-        $SIG{TERM} = sub { die "killed" };
+    my $saslpid = $self->run_command(
+        { background => 1 },
+        abs_path('utils/saslauthd.pl'),
+        $sockpath,
+    );
 
-        POSIX::close( $_ ) for 3 .. 1024; ## Arbitrary upper bound
+    # socket may not be ready yet, give it a moment...
+    my $waited = 0;
+    my $wait_limit = 10; # 10s is ridiculous but whatever
+    while ($waited < $wait_limit) {
+        my $is_exists = -e $sockpath // 0;
+        my $is_socket = -S $sockpath // 0;
+        my $is_writeable = -w $sockpath // 0;
 
-        # child;
-        $0 = "cassandane saslauthd: $basedir";
-        saslauthd("$basedir/run");
-        exit 0;
+        if (get_verbose() > 1) {
+            xlog "socket exists($is_exists)",
+                 "is socket($is_socket)",
+                 "is writeable($is_writeable)";
+        }
+
+        last if $is_exists && $is_socket && $is_writeable;
+        $waited += sleep(0.05);
     }
+    if ($waited >= $wait_limit) {
+        kill(15, $saslpid);
+        waitpid($saslpid, 0);
+        die "saslauthd socket not ready after $waited seconds!\n";
+    }
+    xlog "started saslauthd on $sockpath as $saslpid in $waited seconds";
 
-    xlog "started saslauthd for $basedir as $saslpid";
     push @{$self->{_shutdowncallbacks}}, sub {
         my $self = shift;
         xlog "killing saslauthd $saslpid";
@@ -1891,53 +1909,6 @@ sub folder_to_deleted_directories
         closedir DELDIR;
     }
     return @dirs;
-}
-
-sub saslauthd
-{
-    my $dir = shift;
-    unlink("$dir/mux");
-    xlog "opening socket $dir/mux";
-    my $sock = IO::Socket::UNIX->new(
-        Local => "$dir/mux",
-        Type => SOCK_STREAM,
-        Listen => SOMAXCONN,
-    );
-    die "FAILED to create socket $!" unless $sock;
-    system("chmod 777 $dir/mux");
-
-    eval {
-        while (my $client = $sock->accept()) {
-            my $LoginName = get_counted_string($client);
-            my $Password = get_counted_string($client);
-            my $Service = lc get_counted_string($client);
-            my $Realm = get_counted_string($client);
-            if (get_verbose()) {
-                xlog "authdaemon connection: $LoginName $Password $Service $Realm";
-            }
-
-            # XXX - custom logic?
-
-            # OK :)
-            if ($Password eq 'bad') {
-                $client->print(pack("nA3", 2, "NO\000"));
-            }
-            else {
-                $client->print(pack("nA3", 2, "OK\000"));
-            }
-            $client->close();
-        }
-    };
-}
-
-sub get_counted_string
-{
-    my $sock = shift;
-    my $data;
-    $sock->read($data, 2);
-    my $size = unpack('n', $data);
-    $sock->read($data, $size);
-    return unpack("A$size", $data);
 }
 
 sub notifyd
