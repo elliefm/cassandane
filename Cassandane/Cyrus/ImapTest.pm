@@ -135,7 +135,7 @@ sub list_tests
 
 sub run_imaptest
 {
-    my ($self, @args) = @_;
+    my ($self, $timelimit, @args) = @_;
 
     my $svc = $self->{instance}->get_service('imap');
     my $params = $svc->store_params();
@@ -148,22 +148,23 @@ sub run_imaptest
 
     mkdir $r->{logdir};
     eval {
-        $self->{instance}->run_command({
+        my $pid = $self->{instance}->run_command({
+                background => ($timelimit != 0),
                 redirects => { stderr => $r->{errfile}, stdout => $r->{outfile} },
                 workingdir => $r->{logdir},
-#            handlers => {
-#                exited_normally => sub { $r->{code} = 0; },
-#                exited_abnormally => sub { 
-#                    my (undef, $code) = @_;
-#                    $r->{code} = $code;
-#                    die "imaptest exited with return code $code";
-#                },
-#                signaled => sub {
-#                    my (undef, $sig) = @_;
-#                    $r->{signal} = $sig;
-#                    die "imaptest exited with signal $sig";
-#                },
-#            },
+                handlers => {
+                    exited_normally => sub { $r->{code} = 0; },
+                    exited_abnormally => sub {
+                        my (undef, $code) = @_;
+                        $r->{code} = $code;
+                        die "imaptest exited with return code $code";
+                    },
+                    signaled => sub {
+                        my (undef, $sig) = @_;
+                        $r->{signal} = $sig;
+                        die "imaptest exited with signal $sig";
+                    },
+                },
             },
             $binary,
             "host=" . $params->{host},
@@ -174,6 +175,14 @@ sub run_imaptest
             "mbox=" . abs_path("data/dovecot-crlf"),
             "rawlog",
             @args);
+
+        if ($timelimit) {
+            sleep($timelimit);
+            # imaptest does clean shutdown on interrupt, not term
+            kill 'INT', $pid;
+            sleep 2;
+            $self->{instance}->stop_command($pid);
+        }
     };
     if ($@) {
         $r->{exception} = $@;
@@ -242,10 +251,11 @@ sub test_wiki_status_checkpoint
     my ($self) = @_;
 
     # run ImapTest in 'checkpoint' mode for a couple of minutes
-    my $result = $self->run_imaptest(qw(
-        secs=30
+    my $result = $self->run_imaptest(30, qw(
         checkpoint=1
     ));
+
+    xlog "imaptest result: " . Dumper $result;
 
     if (defined $result->{exception} || get_verbose()) {
         # report the actual errors
@@ -262,7 +272,7 @@ sub test_wiki_status_checkpoint
 
     $self->assert(not defined $result->{exception});
     $self->assert_equals(0, -s $result->{errfile});
-    $self->assert_equals(0, $result->{status});
+    $self->assert_equals(0, $result->{code});
 }
 
 1;
