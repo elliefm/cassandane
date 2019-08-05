@@ -40,13 +40,15 @@
 package Cassandane::Cyrus::Reconstruct;
 use strict;
 use warnings;
+use Data::Dumper;
+use IO::File;
+use IO::File::fcntl;
 
 use lib '.';
 use base qw(Cassandane::Cyrus::TestCase);
 use Cassandane::Util::Log;
 use Cassandane::Instance;
 use Cyrus::IndexFile;
-use IO::File;
 
 sub new
 {
@@ -166,6 +168,7 @@ sub test_reconstruct_truncated
     $self->assert(grep { $_ == 6 } @records);
     $self->assert(not grep { $_ == 11 } @records);
 }
+
 #
 # Test removed file
 #
@@ -203,6 +206,92 @@ sub test_reconstruct_removedfile
     @records = $imaptalk->search("all");
     $self->assert_num_equals(9, scalar @records);
     $self->assert(not grep { $_ == 6 } @records);
+}
+
+#
+# Test zero modseqs
+# Regression test for https://github.com/cyrusimap/cyrus-imapd/issues/2839
+#
+sub test_reconstruct_zeromodseq
+{
+    my ($self) = @_;
+
+    my $imaptalk = $self->{store}->get_client();
+    # we need to be in uid mode to ensure these messages keep their
+    # original UIDs after we fiddle with them...
+    $imaptalk->uid(1);
+
+    for (1..10) {
+        my $msg = $self->{gen}->generate(subject => "subject $_");
+        $self->{store}->write_message($msg, flags => ["\\Seen", "\$NotJunk"]);
+    }
+    $self->{store}->write_end();
+    $imaptalk->select("INBOX") || die;
+
+    my @records = $imaptalk->search("all");
+    $self->assert_num_equals(10, scalar @records);
+    $self->assert_deep_equals([1 .. 10], \@records);
+
+    $self->{instance}->run_command({ cyrus => 1 }, 'reconstruct');
+
+    @records = $imaptalk->search("all");
+    $self->assert_num_equals(10, scalar @records);
+    $self->assert_deep_equals([1 .. 10], \@records);
+
+    # drop the client connection, we need clean state
+    undef $imaptalk;
+    $self->{store}->disconnect();
+
+    # we're about to zero out the modseq on some records, which is
+    # similar to what may exist naturally if a store is upgraded from a
+    # pre-modseq cyrus version
+    my $basedir = $self->{instance}->{basedir};
+    my $indexfname = "$basedir/data/user/cassandane/cyrus.index";
+    my $fh = IO::File::fcntl->new($indexfname, "+<", 'lock_ex', 5);
+    die "no fh" if not $fh;
+    my $index = Cyrus::IndexFile->new($fh);
+    die "didn't open index file" if not $index;
+
+    while (my $record = $index->next_record_hash()) {
+        # fiddle with even-numbered records
+        if ($record->{Uid} % 2 == 0) {
+            $record->{Modseq} = 0;
+            $index->rewrite_record($record);
+        }
+    }
+    undef $index;
+    $fh->lock_un();
+    xlog "zeroed out modseq for even-numbered records";
+
+    # the messages with modseq=0 should still be visible to a new imap
+    # connection
+    $imaptalk = $self->{store}->get_client();
+    $imaptalk->uid(1);
+    $imaptalk->select("INBOX") || die;
+    @records = $imaptalk->search("all");
+    $self->assert_num_equals(10, scalar @records);
+    $self->assert_deep_equals([1 .. 10], \@records);
+    undef $imaptalk;
+    $self->{store}->disconnect();
+
+    # reconstruct should not need to do anything special, because it
+    # still finds the messages in the index.
+    # IN PARTICULAR, it should not "rediscover" these messages on
+    # disk and re-add them with new uids.
+    # Before patching, the rediscover behaviour was triggered by a
+    # cyrus.index version upgrade, so definitely exercise that by
+    # downgrading and then upgrading back to current
+    $self->{instance}->run_command({ cyrus => 1 }, 'reconstruct', '-V12', 'user.cassandane');
+    $self->{instance}->run_command({ cyrus => 1 }, 'reconstruct', '-Vmax', 'user.cassandane');
+
+    # checking with IMAP again, we should still see the original 10
+    # messages with their original 10 uids
+    $imaptalk = $self->{store}->get_client();
+    $imaptalk->uid(1);
+    $imaptalk->select("INBOX") || die;
+    @records = $imaptalk->search("all");
+    $self->assert_num_equals(10, scalar @records);
+    $self->assert_deep_equals([1 .. 10], \@records);
 }
 
 1;
