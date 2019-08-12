@@ -701,7 +701,10 @@ EOF
     $CalDAV->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "friend\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "friend\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 }
 
@@ -812,7 +815,10 @@ EOF
     $CalDAV->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "friend\@example.com", is_update => JSON::false, method => 'REPLY' },
+        { recipient => "friend\@example.com",
+          sender => "test\@example.com",
+          is_update => JSON::false,
+          method => 'REPLY' },
     );
 }
 
@@ -923,7 +929,10 @@ EOF
     $CalDAV->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "friend\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "friend\@example.com",
+          sender => "test\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 }
 
@@ -1019,8 +1028,14 @@ EOF
     $testtalk->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "cassandane\@example.com", is_update => JSON::false, method => 'REQUEST' },
-        { recipient => "friend\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "cassandane\@example.com",
+          sender => "test\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
+        { recipient => "friend\@example.com",
+          sender => "test\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 
     xlog "update PARTSTAT as sharee";
@@ -1030,7 +1045,10 @@ EOF
     $CalDAV->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "test\@example.com", is_update => JSON::false, method => 'REPLY' },
+        { recipient => "test\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REPLY' },
     );
 }
 
@@ -1126,8 +1144,14 @@ EOF
     $CalDAV->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "test\@example.com", is_update => JSON::false, method => 'REQUEST' },
-        { recipient => "friend\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "test\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
+        { recipient => "friend\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 
     xlog "update PARTSTAT as sharer";
@@ -1137,7 +1161,10 @@ EOF
     $testtalk->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "cassandane\@example.com", is_update => JSON::false, method => 'REPLY' },
+        { recipient => "cassandane\@example.com",
+          sender => "test\@example.com",
+          is_update => JSON::false,
+          method => 'REPLY' },
     );
 }
 
@@ -1203,7 +1230,10 @@ EOF
     $CalDAV->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "friend\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "friend\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 
     $card =~ s/ORGANIZER/ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:MAILTO:friend2\@example.com\nORGANIZER/;
@@ -1211,7 +1241,10 @@ EOF
     $CalDAV->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "friend2\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "friend2\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 }
 
@@ -1285,7 +1318,10 @@ EOF
     $CalDAV->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "friend\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "friend\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 }
 
@@ -2025,8 +2061,14 @@ EOF
     $CalDAV->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "test1\@example.com", is_update => JSON::false, method => 'REQUEST' },
-        { recipient => "test2\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "test1\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
+        { recipient => "test2\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 
     # add an override instance
@@ -2056,6 +2098,7 @@ EOF
 
     $self->assert_caldav_notified(
         { recipient => "test1\@example.com",
+          sender => "cassandane\@example.com",
           is_update => JSON::true,
           method => 'REQUEST',
           event => {
@@ -2081,6 +2124,7 @@ EOF
           },
         },
         { recipient => "test2\@example.com",
+          sender => "cassandane\@example.com",
           is_update => JSON::true,
           method => 'REQUEST',
           event => {
@@ -2099,6 +2143,7 @@ EOF
           },
         },
         { recipient => "test3\@example.com",
+          sender => "cassandane\@example.com",
           is_update => JSON::false,
           method => 'REQUEST',
           event => {
@@ -2174,8 +2219,14 @@ EOF
     $CalDAV->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "test1\@example.com", is_update => JSON::false, method => 'REQUEST' },
-        { recipient => "test2\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "test1\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
+        { recipient => "test2\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 
     # add an override instance
@@ -2205,6 +2256,7 @@ EOF
     # only test3 is notified
     $self->assert_caldav_notified(
         { recipient => "test3\@example.com",
+          sender => "cassandane\@example.com",
           is_update => JSON::false,
           method => 'REQUEST',
           event => {
@@ -2281,9 +2333,18 @@ EOF
     $CalDAV->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "test1\@example.com", is_update => JSON::false, method => 'REQUEST' },
-        { recipient => "test2\@example.com", is_update => JSON::false, method => 'REQUEST' },
-        { recipient => "test3\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "test1\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
+        { recipient => "test2\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
+        { recipient => "test3\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 
     # add an override instance
@@ -2312,6 +2373,7 @@ EOF
     # only test3 is notified with an RDATE
     $self->assert_caldav_notified(
         { recipient => "test3\@example.com",
+          sender => "cassandane\@example.com",
           is_update => JSON::true,
           method => 'REQUEST',
           event => {
@@ -2395,7 +2457,10 @@ ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:MAILTO:test2\@example.com
 ORGANIZER;CN=Test User:MAILTO:cassandane\@example.com
 EOF
     $self->assert_caldav_notified(
-        { recipient => "test2\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "test2\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 }
 
@@ -2416,7 +2481,10 @@ ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:MAILTO:test2\@example.com
 ORGANIZER;CN=Test User:MAILTO:cassandane\@example.com
 EOF
     $self->assert_caldav_notified(
-        { recipient => "test2\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "test2\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 }
 
@@ -2437,8 +2505,14 @@ ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:MAILTO:test2\@example.com
 ORGANIZER;CN=Test User:MAILTO:cassandane\@example.com
 EOF
     $self->assert_caldav_notified(
-        { recipient => "test1\@example.com", is_update => JSON::false, method => 'REQUEST' },
-        { recipient => "test2\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "test1\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
+        { recipient => "test2\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 
     xlog "schedule agent SERVER -> REQUEST";
@@ -2449,8 +2523,14 @@ ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;SCHEDULE-AGENT=SERVER:MAILTO:test2\@exa
 ORGANIZER;CN=Test User:MAILTO:cassandane\@example.com
 EOF
     $self->assert_caldav_notified(
-        { recipient => "test1\@example.com", is_update => JSON::false, method => 'REQUEST' },
-        { recipient => "test2\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "test1\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
+        { recipient => "test2\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 
     xlog "schedule agent CLIENT -> nothing";
@@ -2599,7 +2679,9 @@ ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:MAILTO:test1\@example.com
 ORGANIZER;CN=Test User:MAILTO:cassandane\@example.com
 EOF
         $self->assert_caldav_notified(
-            { recipient => "test1\@example.com", is_update => JSON::true },
+            { recipient => "test1\@example.com",
+              sender => "cassandane\@example.com",
+              is_update => JSON::true },
         );
     }
 
@@ -2618,7 +2700,9 @@ ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;SCHEDULE-AGENT=CLIENT:MAILTO:test1\@exa
 ORGANIZER;CN=Test User:MAILTO:cassandane\@example.com
 EOF
         $self->assert_caldav_notified(
-            { recipient => "test1\@example.com", method => 'CANCEL' },
+            { recipient => "test1\@example.com",
+              sender => "cassandane\@example.com",
+              method => 'CANCEL' },
         );
     }
 
@@ -2637,7 +2721,9 @@ ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;SCHEDULE-AGENT=NONE:MAILTO:test1\@examp
 ORGANIZER;CN=Test User:MAILTO:cassandane\@example.com
 EOF
         $self->assert_caldav_notified(
-            { recipient => "test1\@example.com", method => 'CANCEL' },
+            { recipient => "test1\@example.com",
+              sender => "cassandane\@example.com",
+              method => 'CANCEL' },
         );
     }
 
@@ -2672,6 +2758,7 @@ ATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:MAILTO:test1\@example.com
 ORGANIZER;CN=Test User:MAILTO:cassandane\@example.com
 EOF
         # XXX - should be a new request is_update => true
+        # XXX - 2019/08/12 still fails if we assert is_update => true??
         $self->assert_caldav_notified(
             #{ recipient => "test1\@example.com", is_update => JSON::true, method => 'REQUEST' },
             { recipient => "test1\@example.com", method => 'REQUEST' },
@@ -2824,7 +2911,9 @@ EOF
         $self->{instance}->getnotify();
         $CalDAV->Request('DELETE', "$CalendarId/$uuid.ics");
         $self->assert_caldav_notified(
-            { recipient => "test1\@example.com", method => 'CANCEL' },
+            { recipient => "test1\@example.com",
+              sender => "cassandane\@example.com",
+              method => 'CANCEL' },
         );
     }
 
@@ -2839,7 +2928,9 @@ EOF
         $self->{instance}->getnotify();
         $CalDAV->Request('DELETE', "$CalendarId/$uuid.ics");
         $self->assert_caldav_notified(
-            { recipient => "test1\@example.com", method => 'CANCEL' },
+            { recipient => "test1\@example.com",
+              sender => "cassandane\@example.com",
+              method => 'CANCEL' },
         );
     }
 
@@ -2935,7 +3026,9 @@ ATTENDEE;PARTSTAT=ACCEPTED:MAILTO:test1\@example.com
 ORGANIZER:MAILTO:test1\@example.com
 EOF
         $self->assert_caldav_notified(
-            { recipient => "test1\@example.com", method => 'REPLY' },
+            { recipient => "test1\@example.com",
+              sender => "cassandane\@example.com",
+              method => 'REPLY' },
         );
     }
 
@@ -2948,7 +3041,9 @@ ATTENDEE;PARTSTAT=ACCEPTED:MAILTO:test1\@example.com
 ORGANIZER;SCHEDULE-AGENT=SERVER:MAILTO:test1\@example.com
 EOF
         $self->assert_caldav_notified(
-            { recipient => "test1\@example.com", method => 'REPLY' },
+            { recipient => "test1\@example.com",
+              sender => "cassandane\@example.com",
+              method => 'REPLY' },
         );
     }
 
@@ -2999,7 +3094,9 @@ ATTENDEE;PARTSTAT=ACCEPTED:MAILTO:test1\@example.com
 ORGANIZER:MAILTO:test1\@example.com
 EOF
         $self->assert_caldav_notified(
-            { recipient => "test1\@example.com", method => 'REPLY' },
+            { recipient => "test1\@example.com",
+              sender => "cassandane\@example.com",
+              method => 'REPLY' },
         );
     }
 
@@ -3069,6 +3166,7 @@ EOF
         $self->assert_caldav_notified(
             {
                 recipient => "test1\@example.com",
+                sender => "cassandane\@example.com",
                 method => 'REPLY',
                 event => {
                     uid => $uuid,
@@ -3131,6 +3229,7 @@ EOF
             {
                 method => 'REQUEST',
                 recipient => "test1\@example.com",
+                sender => "cassandane\@example.com",
                 is_update => JSON::true,
                 event => {
                     recurrenceOverrides => {
@@ -3148,6 +3247,7 @@ EOF
             {
                 method => 'REQUEST',
                 recipient => "test2\@example.com",
+                sender => "cassandane\@example.com",
                 is_update => JSON::true,
                 event => {
                     start => '2016-06-01T15:30:00',
@@ -3163,6 +3263,7 @@ EOF
             {
                 method => 'REQUEST',
                 recipient => "test3\@example.com",
+                sender => "cassandane\@example.com",
                 is_update => JSON::true,
                 event => {
                     recurrenceOverrides => {
@@ -3262,11 +3363,13 @@ EOF
         {
             method => 'CANCEL',
             recipient => "test1\@example.com",
+            sender => "cassandane\@example.com",
             event => $regular,
         },
         {
             method => 'CANCEL',
             recipient => "test2\@example.com",
+            sender => "cassandane\@example.com",
             event => {
                 recurrenceOverrides => {
                 '2016-06-08T15:30:00' => $except,
@@ -3277,6 +3380,7 @@ EOF
         {
             method => 'CANCEL',
             recipient => "test3\@example.com",
+            sender => "cassandane\@example.com",
             event => $regular,
         },
     );
@@ -3357,6 +3461,7 @@ EOF
         {
             method => 'REPLY',
             recipient => 'friend@example.com',
+            sender => 'cassandane@example.com',
             event => {
                 participants => {
                     'cassandane@example.com' => {
@@ -3443,6 +3548,7 @@ EOF
         {
             method => 'REPLY',
             recipient => 'friend@example.com',
+            sender => 'cassandane@example.com',
             event => {
                 participants => {
                     'cassandane@example.com' => {
@@ -3636,7 +3742,10 @@ EOF
     $CalDAV->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "friend\@example.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "friend\@example.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 
     # change organizer and move the event 1 hour later
@@ -3685,17 +3794,20 @@ EOF
     );
 
     $self->assert_caldav_notified(
-        {
-            recipient => "friend\@example.com",
-            is_update => JSON::true,
-            method => 'REQUEST',
-            event => {
-                replyTo => {
-                    imip => 'mailto:otherme@example.com',
-                },
+        { recipient => "friend\@example.com",
+          sender => "otherme\@example.com",
+          is_update => JSON::true,
+          method => 'REQUEST',
+          event => {
+            replyTo => {
+                imip => 'mailto:otherme@example.com',
             },
+          },
         },
-        { recipient => "cassandane\@example.com", is_update => JSON::false, method => 'CANCEL' },
+        { recipient => "cassandane\@example.com",
+          sender => "otherme\@example.com",
+          is_update => JSON::false,
+          method => 'CANCEL' },
     );
 }
 
@@ -3771,6 +3883,7 @@ EOF
         {
             method => 'REPLY',
             recipient => 'friend@example.com',
+            sender => 'othercas@example.com',
             event => {
                 participants => {
                     'othercas@example.com' => {
@@ -3933,7 +4046,10 @@ EOF
     $CalDAV->Request('PUT', $href, $card, 'Content-Type' => 'text/calendar');
 
     $self->assert_caldav_notified(
-        { recipient => "cassandane\@othersite.com", is_update => JSON::false, method => 'REQUEST' },
+        { recipient => "cassandane\@othersite.com",
+          sender => "cassandane\@example.com",
+          is_update => JSON::false,
+          method => 'REQUEST' },
     );
 }
 
