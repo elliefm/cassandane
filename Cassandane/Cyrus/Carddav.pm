@@ -507,4 +507,93 @@ EOF
     }
 }
 
+sub test_move_contact_sameuser
+    :needs_component_httpd
+{
+    my ($self) = @_;
+
+    my $CardDAV = $self->{carddav};
+    my $addressbook1 = $CardDAV->NewAddressBook('foo');
+    my $addressbook2 = $CardDAV->NewAddressBook('bar');
+    $self->assert_not_null($addressbook1);
+    $self->assert_not_null($addressbook2);
+    $self->assert_str_equals($addressbook1, 'foo');
+    $self->assert_str_equals($addressbook2, 'bar');
+
+    my $vcard_string = <<EOF;
+BEGIN:VCARD
+VERSION:3.0
+N:Gump;Forrest;;Mr.
+FN:Forrest Gump
+ORG:Bubba Gump Shrimp Co.
+TITLE:Shrimp Man
+REV:2008-04-24T19:52:43Z
+END:VCARD
+EOF
+
+    my $vcard = Net::CardDAVTalk::VCard->new_fromstring($vcard_string);
+
+    # create a contact in addressbook 1
+    my $vcard_path1 = $CardDAV->NewContact($addressbook1, $vcard);
+
+    # let's see if it matches what we created?
+    my $tmp = $CardDAV->GetContact($vcard_path1);
+    # XXX doesn't exactly match due to looseness of undef vs '' ?
+#    $self->assert_deep_equals($vcard->{properties}, $tmp->{properties});
+
+    # what if we http MOVE it to the other address book
+    my $vcard_path2 = $vcard_path1;
+    $vcard_path2 =~ s/$addressbook1/$addressbook2/;
+    $tmp = $CardDAV->MoveContact($vcard_path1, $vcard_path2);
+    $self->assert_str_equals($vcard_path2, $tmp);
+
+    # a whole new contact
+    $vcard_string = <<EOF;
+BEGIN:VCARD
+VERSION:3.0
+N:Curran;Jenny;;Miss.
+FN:Jenny Curran
+REV:2008-04-24T19:52:43Z
+END:VCARD
+EOF
+
+    $vcard = Net::CardDAVTalk::VCard->new_fromstring($vcard_string);
+    $vcard_path1 = $CardDAV->NewContact($addressbook1, $vcard);
+
+    # what if we http DELETE/PUT it into the other address book
+    $vcard = $CardDAV->GetContact($vcard_path1);
+    $tmp = $CardDAV->DeleteContact($vcard_path1);
+    $self->assert_str_equals($vcard_path1, $tmp);
+    $tmp = $vcard_path1;
+    $tmp =~ s/$addressbook1/$addressbook2/;
+    $vcard_path2 = $CardDAV->NewContact($addressbook2, $vcard);
+    $self->assert_str_equals($tmp, $vcard_path2);
+
+    # but that's not very safe, a sane client is more likely to try to
+    # PUT/DELETE (and only DELETE if the PUT succeeded)
+
+    # another whole new contact
+    $vcard_string = <<EOF;
+BEGIN:VCARD
+VERSION:3.0
+N:Taylor;Dan;;Lt.
+FN:Dan Taylor
+REV:2008-04-24T19:52:43Z
+END:VCARD
+EOF
+
+    $vcard = Net::CardDAVTalk::VCard->new_fromstring($vcard_string);
+    $vcard_path1 = $CardDAV->NewContact($addressbook1, $vcard);
+
+    $vcard = $CardDAV->GetContact($vcard_path1);
+    $vcard_path2 = $vcard_path1;
+    $vcard_path2 =~ s/$addressbook1/$addressbook2/;
+    # PUT it in addressbook2
+    $tmp = $CardDAV->NewContact($addressbook2, $vcard);
+    $self->assert_str_equals($vcard_path2, $tmp);
+    # then DELETE it from addressbook1
+    $tmp = $CardDAV->DeleteContact($vcard_path1);
+    $self->assert_str_equals($vcard_path1, $tmp);
+}
+
 1;
