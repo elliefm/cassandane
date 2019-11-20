@@ -362,6 +362,98 @@ sub test_shared_mailbox
     );
 }
 
+sub test_shared_mailbox_granularity_1
+    :min_version_3_0 :NoStartInstances :UnixHierarchySep
+{
+    my ($self) = @_;
+
+    # override default config
+    $self->{backups}->{config}->set('backup_shared_mailbox_granularity' => 1);
+
+    # now we can start the instances
+    $self->_start_instances();
+    my $admintalk = $self->{adminstore}->get_client();
+
+    # should definitely not be able to create a user that would conflict
+    # with where shared mailbox backups are stored!
+    $admintalk->create('user/%SHARED');
+    $self->assert_str_equals('no', $admintalk->get_last_completion_response());
+
+    # create several shared folder hierarchies and messages
+    my @top_level = qw( bird cat.fish dog );
+    my @sub_level = qw( processed onhold urgent );
+    my %exp;
+    my $id = 1;
+    foreach my $top (@top_level) {
+        $admintalk->create($top);
+        $self->assert_str_equals('ok',
+            $admintalk->get_last_completion_response());
+        $admintalk->setacl($top, 'cassandane' => 'lrswipkxtecdn');
+        $self->assert_str_equals('ok',
+            $admintalk->get_last_completion_response());
+
+        # shouldn't be a backup for it yet
+        $self->assert_backups_not_exist({ mailboxes => [$top] });
+
+        foreach my $sub (@sub_level) {
+            my $f = "$top/$sub";
+            $admintalk->create($f);
+            $self->assert_str_equals('ok',
+                $admintalk->get_last_completion_response());
+            $admintalk->setacl($f, 'cassandane' => 'lrswipkxtecdn');
+            $self->assert_str_equals('ok',
+                $admintalk->get_last_completion_response());
+
+            $self->{store}->set_folder($f);
+
+            # put four messages into each subfolder
+            for (1..4) {
+                $exp{$top}->{$id} = $self->make_message("Message $id");
+                $id++;
+            }
+
+            # make a backup of it
+            $self->do_backup({ mailboxes => $f });
+        }
+
+        # should be a backup for it now
+        $self->assert_backups_exist({ mailboxes => [$top] });
+    }
+
+    foreach my $top (@top_level) {
+        my $messages = $self->cyr_backup_json(
+            { mailbox => $top },
+            'messages'
+        );
+
+        # backup should contain twelve messages (four in each sub)
+        $self->assert_equals(4 * scalar(@sub_level), scalar @{$messages});
+
+        my $headers = $self->cyr_backup_json(
+            { mailbox => $top },
+            'headers',
+            map { $_->{guid} } @{$messages}
+        );
+
+        # transform out enough data for comparison purposes
+        my %expected = map {
+            $_->get_guid() => $_->get_header('X-Cassandane-Unique')
+        } values %{$exp{$top}};
+
+        my %actual = map {
+            $_ => $headers->{$_}->{'X-Cassandane-Unique'}->[0]
+        } keys %{$headers};
+
+        $self->assert_deep_equals(\%expected, \%actual);
+
+        # XXX probably don't do this like this
+        $self->{backups}->run_command(
+            { cyrus => 1 },
+            qw(ctl_backups -S -vvv verify -m ), $top
+        );
+    }
+}
+
 sub test_deleted_mailbox
     :min_version_3_0
 {
