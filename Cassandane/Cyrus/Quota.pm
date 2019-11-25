@@ -1112,6 +1112,44 @@ sub test_quota_f_unixhs
     $self->assert_matches(qr{STORAGE user/cassandane}, $str);
 }
 
+sub test_quota_f_unixhs_virtdom
+    :UnixHierarchySep :VirtDomains
+{
+    my ($self) = @_;
+
+    $self->{instance}->create_user('someone@example.com');
+
+    xlog "set ourselves a basic usage quota";
+    foreach my $quotaroot ('user/cassandane', 'user/someone@example.com') {
+        $self->_set_limits(
+            quotaroot => $quotaroot,
+            storage => 100000,
+            message => 50000,
+            'x-annotation-storage' => 10000,
+        );
+        $self->_check_usages(
+            quotaroot => $quotaroot,
+            storage => 0,
+            message => 0,
+            'x-annotation-storage' => 0,
+        );
+    }
+
+    xlog "run quota -f -u someone\@example.com";
+    my @data = $self->{instance}->run_command({
+        cyrus => 1,
+        redirects => { stdout => $self->{instance}{basedir} . '/quota.out' },
+    }, 'quota', '-f', '-u', 'someone@example.com');
+
+    open(FH, "<", $self->{instance}{basedir} . '/quota.out');
+    local $/ = undef;
+    my $str = <FH>;
+    close(FH);
+
+    $self->assert_matches(qr{STORAGE user/someone\@example.com}, $str);
+    $self->assert_does_not_match(qr{STORAGE user/cassandane}, $str);
+}
+
 sub test_quota_f
 {
     my ($self) = @_;
