@@ -100,6 +100,7 @@ sub new
         starts => [],
         services => {},
         events => [],
+        daemons => [],
         generic_daemons => {},
         re_use_dir => 0,
         setup_mailbox => 1,
@@ -435,6 +436,12 @@ sub add_event
     push(@{$self->{events}}, Cassandane::MasterEvent->new(%params));
 }
 
+sub add_daemon
+{
+    my ($self, %params) = @_;
+    push(@{$self->{daemons}}, Cassandane::Daemon->new(%params));
+}
+
 sub add_generic_daemon
 {
     my ($self, %params) = @_;
@@ -461,6 +468,7 @@ sub set_config
 
     $self->{config} = $conf;
     map { $_->set_config($conf); } (values %{$self->{services}},
+                                    @{$self->{daemons}},
                                     values %{$self->{generic_daemons}});
 }
 
@@ -749,6 +757,13 @@ sub _generate_master_conf
         print MASTER "}\n";
     }
 
+    if (scalar @{$self->{daemons}})
+    {
+        print MASTER "DAEMON {\n";
+        map { $self->_emit_master_entry($_); } @{$self->{daemons}};
+        print MASTER "}\n";
+    }
+
     # $self->{generic_daemons} is daemons *not* managed by master
 
     close MASTER;
@@ -768,7 +783,7 @@ sub _add_services_from_cyrus_conf
         chomp;
         s/\s*#.*//;             # strip comments
         next if m/^\s*$/;       # skip empty lines
-        my ($m) = m/^(START|SERVICES|EVENTS)\s*{/;
+        my ($m) = m/^(START|SERVICES|EVENTS|DAEMONS)\s*{/;
         if ($m)
         {
             $in = $m;
@@ -1120,7 +1135,7 @@ sub start
     $self->_start_smtpd();
 
     # arrange for fakesaslauthd to be started by master
-    # XXX make this run as a DAEMON rather than a START
+    # XXX make this run as a wait=1 DAEMON rather than a START
     my $fakesaslauthd_socket = "$self->{basedir}/run/mux";
     if ($self->{authdaemon}) {
         $self->add_start(
@@ -1833,11 +1848,18 @@ sub describe
     print "Cyrus instance\n";
     printf "    name: %s\n", $self->{name};
     printf "    imapd.conf: %s\n", $self->_imapd_conf();
+    printf "    cyrus.conf: %s\n", $self->_master_conf();
     printf "    services:\n";
     foreach my $srv (values %{$self->{services}})
     {
         printf "        ";
         $srv->describe();
+    }
+    printf "    daemons:\n";
+    foreach my $daemon (@{$self->{daemons}})
+    {
+        printf "        ";
+        $daemon->describe();
     }
     printf "    generic daemons:\n";
     foreach my $daemon (values %{$self->{generic_daemons}})
