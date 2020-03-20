@@ -90,6 +90,7 @@ sub new
         murder => 0,
         backups => 0,
         start_instances => 1,
+        setup_mailbox => 1,
         services => [ 'imap' ],
         store => 1,
         adminstore => 0,
@@ -259,6 +260,9 @@ magic(NoStartInstances => sub {
     # If any test function in your suite uses this magic, then
     # your suite's set_up function cannot assume Cyrus is running!
     shift->want('start_instances' => 0);
+});
+magic(NoMailbox => sub {
+    shift->want('setup_mailbox' => 0);
 });
 magic(MagicPlus => sub {
     shift->config_set('imapmagicplus' => 'yes');
@@ -443,6 +447,7 @@ sub _create_instances
 
         $instance_params{config} = $conf;
         $instance_params{install_certificates} = $want->{install_certificates};
+        $instance_params{setup_mailbox} = $want->{setup_mailbox};
 
         $instance_params{description} = "main instance for test $self->{_name}";
         $self->{instance} = Cassandane::Instance->new(%instance_params);

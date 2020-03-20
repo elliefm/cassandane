@@ -1183,9 +1183,14 @@ sub start
             if not -S $fakesaslauthd_socket;
     }
 
-    if ($created && $self->{setup_mailbox})
+    if ($created)
     {
-        $self->create_user("cassandane");
+        if ($self->{setup_mailbox}) {
+            $self->create_user("cassandane");
+        }
+        else {
+            xlog "cassandane user not created due to setup_mailbox=0";
+        }
     }
 
     xlog "started $self->{description}: cyrus version "
