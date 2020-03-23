@@ -127,6 +127,10 @@ Cassandane needs the following software to work:
     Self-contained RDBMS in a DBI Driver
     Debian/Ubuntu package libdbd-sqlite3-perl
 
+ * Proc::ProcessTable
+    Module for getting a listing of running processes (a la 'ps')
+    Debian package libproc-processtable-perl
+
  * AnyEvent
  * Convert::Base64
  * DateTime::Format::ISO8601
@@ -149,7 +153,7 @@ Debian/Ubuntu copypasta:
        libdatetime-format-ical-perl libuniversal-require-perl \
        libtest-nowarnings-perl libtest-longstring-perl \
        libtest-warn-perl libnet-ldap-server-perl \
-       libdbd-sqlite3-perl
+       libdbd-sqlite3-perl libproc-processtable-perl
 
   sudo cpan Math::Int64 Mail::JMAPTalk Mail::IMAPTalk \
        Net::CalDAVTalk Net::CardDAVTalk String::CRC32
