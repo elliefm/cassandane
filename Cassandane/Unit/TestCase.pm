@@ -292,4 +292,20 @@ sub assert_num_lte
                   "$actual is not less-than-or-equal-to $expected");
 }
 
+sub assert_num_gt
+{
+    my ($self, $expected, $actual) = @_;
+
+    $self->assert(($actual > $expected),
+                  "$actual is not greater than $expected");
+}
+
+sub assert_num_lt
+{
+    my ($self, $expected, $actual) = @_;
+
+    $self->assert(($actual < $expected),
+                  "$actual is not less than $expected");
+}
+
 1;
