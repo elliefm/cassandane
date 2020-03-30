@@ -49,6 +49,13 @@ openlog('waitdaemon.pl', '', LOG_LOCAL6);
 # if this pipe is not undef, then we need to write "ok\r\n" to it once
 # we've successfully finished initialising and about to start work
 my $childready_pipe = IO::Handle->new_from_fd(3, "w");
+if (defined $childready_pipe) {
+    syslog(LOG_DEBUG, "opened childready pipe, fd=%i",
+                      fileno($childready_pipe));
+}
+else {
+    syslog(LOG_DEBUG, "no childready pipe found");
+}
 
 my $opt_altconfig;
 my $opt_id;

@@ -180,4 +180,26 @@ sub test_bad_childready
     $self->assert_num_equals(0, $self->{instance}->is_running());
 }
 
+sub test_truncated_childready
+    :NoMailbox :NoStartInstances :min_version_3_3
+{
+    my ($self) = @_;
+
+    $self->{instance}->add_daemon(
+        name => "waitdaemon",
+        argv => [ $waitdaemon,
+                  '--ready' => 'short',
+                ],
+        wait => 1,
+    );
+
+    # XXX this doesn't throw an exception if the instance's
+    # XXX master process fails to start -- it probably should!
+    $self->{instance}->start();
+
+    # XXX instead, start it, wait a bit, then ask it if it's running
+    sleep 3;
+    $self->assert_num_equals(0, $self->{instance}->is_running());
+}
+
 1;
