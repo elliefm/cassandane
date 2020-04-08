@@ -73,12 +73,33 @@ sub tear_down
     $self->SUPER::tear_down();
 }
 
+sub add_waitdaemon
+{
+    my ($self, $instance, $id, $args) = @_;
+
+    $id //= 0;
+
+    $instance->add_daemon(
+        name => "waitdaemon$id",
+        argv => [ $waitdaemon,
+                  '--id' => $id,
+                  '--name' => $self->{_name},
+                  %{$args},
+                ],
+        wait => 1,
+    );
+}
+
 sub get_waitdaemon_procs
 {
     my ($self) = @_;
 
     my $ps = Proc::ProcessTable->new();
-    my @procs = grep { $_->cmndline() =~ m/waitdaemon/ } @{ $ps->table() };
+
+    my $pattern = qr{\bwaitdaemon\.pl\b.*?--name[=\s]$self->{_name}\b};
+
+    my @procs = grep { $_->cmndline() =~ $pattern } @{ $ps->table() };
+
     return @procs;
 }
 
@@ -96,14 +117,7 @@ sub test_startup_order
     my ($self) = @_;
 
     foreach my $id (1 .. 5) {
-        $self->{instance}->add_daemon(
-            name => "waitdaemon$id",
-            argv => [ $waitdaemon,
-                      '--id' => $id,
-                      '--ready' => 'ok',
-                    ],
-            wait => 1,
-        );
+        $self->add_waitdaemon($self->{instance}, $id, { '--ready' => 'ok' });
     }
     $self->{instance}->start();
 
@@ -131,15 +145,10 @@ sub test_shutdown_order
     my $basedir = $self->{instance}->get_basedir();
 
     foreach my $id (1 .. 5) {
-        $self->{instance}->add_daemon(
-            name => "waitdaemon$id",
-            argv => [ $waitdaemon,
-                      '--id' => $id,
-                      '--ready' => 'ok',
-                      '--shutdownfile' => "$basedir/waitdaemon$id.shutdown",
-                    ],
-            wait => 1,
-        );
+        $self->add_waitdaemon($self->{instance}, $id, {
+            '--ready' => 'ok',
+            '--shutdownfile' => "$basedir/waitdaemon$id.shutdown",
+        });
     }
 
     $self->{instance}->start();
@@ -161,13 +170,7 @@ sub test_bad_childready
 {
     my ($self) = @_;
 
-    $self->{instance}->add_daemon(
-        name => "waitdaemon",
-        argv => [ $waitdaemon,
-                  '--ready' => 'bad',
-                ],
-        wait => 1,
-    );
+    $self->add_waitdaemon($self->{instance}, undef, { '--ready' => 'bad' });
 
     # XXX make sure fakesaslauthd and waitdaemon are killed off after
 
@@ -185,13 +188,7 @@ sub test_truncated_childready
 {
     my ($self) = @_;
 
-    $self->{instance}->add_daemon(
-        name => "waitdaemon",
-        argv => [ $waitdaemon,
-                  '--ready' => 'short',
-                ],
-        wait => 1,
-    );
+    $self->add_waitdaemon($self->{instance}, undef, { '--ready' => 'short' });
 
     # XXX this doesn't throw an exception if the instance's
     # XXX master process fails to start -- it probably should!

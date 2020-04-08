@@ -59,6 +59,7 @@ else {
 
 my $opt_altconfig;
 my $opt_id;
+my $opt_name;
 my $opt_ready;
 my $opt_exitearly;
 my $opt_requirepipe = 0;
@@ -71,6 +72,7 @@ $SIG{HUP} = $SIG{INT} = $SIG{TERM} = sub { $shutdown++; };
 GetOptions(
     'C=s',              \$opt_altconfig,
     'id=i',             \$opt_id,
+    'name=s',           \$opt_name,
     'ready=s',          \$opt_ready,
     'exitearly=s',      \$opt_exitearly,
     'requirepipe',      \$opt_requirepipe,
