@@ -183,6 +183,11 @@ sub test_bad_childready
     # XXX instead, start it, wait a bit, then ask it if it's running
     sleep 3;
     $self->assert_num_equals(0, $self->{instance}->is_running());
+
+    # master should've logged an error when it exited
+    my @syslog = $self->{instance}->getsyslog();
+    $self->assert_matches(qr{waitdaemon \w+/daemon did not write "ok},
+                          "@syslog");
 }
 
 sub test_truncated_childready
@@ -199,6 +204,11 @@ sub test_truncated_childready
     # XXX instead, start it, wait a bit, then ask it if it's running
     sleep 3;
     $self->assert_num_equals(0, $self->{instance}->is_running());
+
+    # master should've logged an error when it exited
+    my @syslog = $self->{instance}->getsyslog();
+    $self->assert_matches(qr{waitdaemon \w+/daemon did not write "ok},
+                          "@syslog");
 }
 
 1;
