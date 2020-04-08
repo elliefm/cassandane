@@ -172,7 +172,14 @@ sub test_bad_childready
 {
     my ($self) = @_;
 
-    $self->add_waitdaemon($self->{instance}, undef, { '--ready' => 'bad' });
+    # some good starts
+    foreach my $id (1 .. 3) {
+        $self->add_waitdaemon($self->{instance}, $id, { '--ready' => 'ok' });
+    }
+    # some bad bad starts
+    foreach my $id (4 .. 5) {
+        $self->add_waitdaemon($self->{instance}, $id, { '--ready' => 'bad' });
+    }
 
     # XXX make sure fakesaslauthd is killed off after
 
@@ -184,10 +191,20 @@ sub test_bad_childready
     sleep 3;
     $self->assert_num_equals(0, $self->{instance}->is_running());
 
-    # master should've logged an error when it exited
     my @syslog = $self->{instance}->getsyslog();
-    $self->assert_matches(qr{waitdaemon \w+/daemon did not write "ok},
+
+    # master should not have logged errors for the good ones
+    foreach my $good (1 .. 3) {
+        my $pattern = qr{waitdaemon$good/daemon};
+        $self->assert_does_not_match($pattern, "@syslog");
+    }
+
+    # master should've logged an error when it exited
+    $self->assert_matches(qr{waitdaemon waitdaemon4/daemon did not write "ok},
                           "@syslog");
+
+    # master should not have even tried to start the second bad one
+    $self->assert_does_not_match(qr{waitdaemon5/daemon}, "@syslog");
 
     # should not be any waitdaemon processes dangling around
     $self->assert_num_equals(0, scalar $self->get_waitdaemon_procs());
@@ -197,6 +214,15 @@ sub test_truncated_childready
     :NoMailbox :NoStartInstances :min_version_3_3
 {
     my ($self) = @_;
+
+    # some good starts
+    foreach my $id (1 .. 3) {
+        $self->add_waitdaemon($self->{instance}, $id, { '--ready' => 'ok' });
+    }
+    # some bad starts
+    foreach my $id (4 .. 5) {
+        $self->add_waitdaemon($self->{instance}, $id, { '--ready' => 'short' });
+    }
 
     $self->add_waitdaemon($self->{instance}, undef, { '--ready' => 'short' });
 
@@ -208,10 +234,20 @@ sub test_truncated_childready
     sleep 3;
     $self->assert_num_equals(0, $self->{instance}->is_running());
 
-    # master should've logged an error when it exited
     my @syslog = $self->{instance}->getsyslog();
-    $self->assert_matches(qr{waitdaemon \w+/daemon did not write "ok},
+
+    # master should not have logged errors for the good ones
+    foreach my $good (1 .. 3) {
+        my $pattern = qr{waitdaemon$good/daemon};
+        $self->assert_does_not_match($pattern, "@syslog");
+    }
+
+    # master should've logged an error when it exited
+    $self->assert_matches(qr{waitdaemon waitdaemon4/daemon did not write "ok},
                           "@syslog");
+
+    # master should not have even tried to start the second bad one
+    $self->assert_does_not_match(qr{waitdaemon5/daemon}, "@syslog");
 
     # should not be any waitdaemon processes dangling around
     $self->assert_num_equals(0, scalar $self->get_waitdaemon_procs());
