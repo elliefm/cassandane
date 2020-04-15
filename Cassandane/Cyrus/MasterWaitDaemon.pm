@@ -253,4 +253,23 @@ sub test_truncated_childready
     $self->assert_num_equals(0, scalar $self->get_waitdaemon_procs());
 }
 
+sub test_name_conflict
+    :NoMailbox :NoStartInstances :min_version_3_3
+{
+    my ($self) = @_;
+
+    $self->{instance}->add_service(name => 'collision',
+                                   argv => [ 'imapd' ]);
+
+    $self->{instance}->add_daemon(name => 'collision',
+                                  argv => [ $waitdaemon,
+                                            '--ready' => 'ok',
+                                          ],
+                                  wait => 1);
+
+    eval { $self->{instance}->start() };
+    my $e = $@;
+    $self->assert_matches(qr{Master no longer running}, $e)
+}
+
 1;
