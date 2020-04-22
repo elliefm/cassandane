@@ -174,7 +174,7 @@ sub test_bad_childready
 
     $self->add_waitdaemon($self->{instance}, undef, { '--ready' => 'bad' });
 
-    # XXX make sure fakesaslauthd and waitdaemon are killed off after
+    # XXX make sure fakesaslauthd is killed off after
 
     # XXX this doesn't throw an exception if the instance's
     # XXX master process fails to start -- it probably should!
@@ -188,6 +188,9 @@ sub test_bad_childready
     my @syslog = $self->{instance}->getsyslog();
     $self->assert_matches(qr{waitdaemon \w+/daemon did not write "ok},
                           "@syslog");
+
+    # should not be any waitdaemon processes dangling around
+    $self->assert_num_equals(0, scalar $self->get_waitdaemon_procs());
 }
 
 sub test_truncated_childready
@@ -209,6 +212,9 @@ sub test_truncated_childready
     my @syslog = $self->{instance}->getsyslog();
     $self->assert_matches(qr{waitdaemon \w+/daemon did not write "ok},
                           "@syslog");
+
+    # should not be any waitdaemon processes dangling around
+    $self->assert_num_equals(0, scalar $self->get_waitdaemon_procs());
 }
 
 1;
