@@ -1135,7 +1135,6 @@ sub start
     $self->_start_smtpd();
 
     # arrange for fakesaslauthd to be started by master
-    # XXX make this run as a wait=1 DAEMON rather than a START
     my $fakesaslauthd_socket = "$self->{basedir}/run/mux";
     if ($self->{authdaemon}) {
         $self->add_start(
@@ -1143,6 +1142,7 @@ sub start
             argv => [
                 abs_path('utils/fakesaslauthd'),
                 '-p', $fakesaslauthd_socket,
+                '-P', $self->_pid_file('fakesaslauthd'),
             ],
         );
     }

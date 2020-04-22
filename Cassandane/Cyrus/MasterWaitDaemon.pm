@@ -181,8 +181,6 @@ sub test_bad_childready
         $self->add_waitdaemon($self->{instance}, $id, { '--ready' => 'bad' });
     }
 
-    # XXX make sure fakesaslauthd is killed off after
-
     # XXX this doesn't throw an exception if the instance's
     # XXX master process fails to start -- it probably should!
     $self->{instance}->start();

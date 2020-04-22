@@ -18,9 +18,10 @@ sub get_counted_string
 
 my %opts;
 
-getopts("C:dp:v", \%opts);
+getopts("C:P:dp:v", \%opts);
 
 die "need a socket path" if not $opts{p};
+die "need a pidfile path" if not $opts{P};
 
 openlog('fakesaslauthd', '', LOG_LOCAL6)
     or die "Cannot openlog";
@@ -31,6 +32,12 @@ if (not $opts{d} and not $ENV{CYRUS_ISDAEMON}) {
     die "unable to fork: $!" if not defined $pid;
     exit(0) if $pid != 0; # bye bye parent
 }
+
+# write pidfile
+open my $fh, '>', $opts{P}
+    or die "unable to write pidfile $opts{P}: $!";
+print $fh "$$\n";
+close $fh;
 
 # open socket
 unlink($opts{p});
