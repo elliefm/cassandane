@@ -75,130 +75,6 @@ sub tear_down
     $self->SUPER::tear_down();
 }
 
-sub _install_test_data
-{
-    my ($self, $test_data) = @_;
-
-    my $imaptalk = $self->{store}->get_client();
-
-    foreach my $row (@{$test_data}) {
-        my ($cmd, $arg) = @{$row};
-        if (ref $arg) {
-            foreach (@{$arg}) {
-                $imaptalk->$cmd($_) || die "$cmd '$_': $@";
-            }
-        }
-        else {
-            $imaptalk->$cmd($arg) || die "$cmd '$_': $@";
-        }
-    }
-}
-
-sub _assert_list_data
-{
-    my ($self, $actual, $expected_hiersep, $expected_mailbox_flags, $strict, $msg) = @_;
-
-    # rearrange list output into order-agnostic format
-    my %actual_hash;
-    foreach my $row (@{$actual}) {
-        my ($flags, $hiersep, $mailbox) = @{$row};
-
-        $actual_hash{$mailbox} = {
-            flags => { map { (lc($_) => 1) } @{$flags} },
-            hiersep => $hiersep,
-            mailbox => $mailbox,
-        }
-    }
-
-    # check that expected data exists
-    foreach my $mailbox (sort keys %{$expected_mailbox_flags}) {
-        xlog $self, "expect mailbox: $mailbox";
-        $self->assert(
-            exists $actual_hash{$mailbox},
-            "'$mailbox': mailbox not found"
-        );
-
-        $self->assert_str_equals(
-            $actual_hash{$mailbox}->{hiersep},
-            $expected_hiersep,
-            "'$mailbox': got hierarchy separator '"
-                . $actual_hash{$mailbox}->{hiersep}
-                . "', expected '$expected_hiersep'"
-        );
-
-        my %expected_flags;
-        if (ref $expected_mailbox_flags->{$mailbox}) {
-            %expected_flags = map { (lc($_) => 1) }
-                                  @{$expected_mailbox_flags->{$mailbox}};
-        }
-        else {
-            %expected_flags = map { (lc($_) => 1) }
-                                  split / /, $expected_mailbox_flags->{$mailbox};
-        }
-
-        # look for expected flags
-        foreach my $flag (sort keys %expected_flags) {
-            # https://tools.ietf.org/html/rfc5258#section-3.4:
-            #    \NoInferiors implies \HasNoChildren
-            #    \NonExistent implies \NoSelect
-            if ($flag eq "\\hasnochildren") {
-                $self->assert(
-                    (exists $actual_hash{$mailbox}->{flags}->{$flag}
-                     || exists $actual_hash{$mailbox}->{flags}->{"\\noinferiors"}),
-                    "'$mailbox': missing flag '$flag'"
-                );
-            }
-            elsif ($flag eq "\\noselect") {
-                $self->assert(
-                    (exists $actual_hash{$mailbox}->{flags}->{$flag}
-                     || exists $actual_hash{$mailbox}->{flags}->{"\\nonexistent"}),
-                    "'$mailbox': missing flag '$flag'"
-                );
-            }
-            else {
-                $self->assert(
-                    exists $actual_hash{$mailbox}->{flags}->{$flag},
-                    "'$mailbox': missing flag '$flag'"
-                );
-            }
-        }
-
-        next if not $strict;
-
-        # look for unexpected flags
-        foreach my $flag (sort keys %{$actual_hash{$mailbox}->{flags}}) {
-            if ($flag eq "\\noinferiors") {
-                $self->assert(
-                    (exists $actual_hash{$mailbox}->{flags}->{$flag}
-                     || exists $actual_hash{$mailbox}->{flags}->{"\\hasnochildren"}),
-                    "'$mailbox': found unexpected flag '$flag'"
-                );
-            }
-            elsif ($flag eq "\\nonexistent") {
-                $self->assert(
-                    (exists $actual_hash{$mailbox}->{flags}->{$flag}
-                     || exists $actual_hash{$mailbox}->{flags}->{"\\noselect"}),
-                    "'$mailbox': found unexpected flag '$flag'"
-                );
-            }
-            else {
-                $self->assert(
-                    exists $expected_flags{$flag},
-                    "'$mailbox': found unexected flag '$flag'"
-                );
-            }
-        }
-    }
-
-    # check that unexpected data does not exist
-    foreach my $mailbox (sort keys %actual_hash) {
-        $self->assert(
-            exists $expected_mailbox_flags->{$mailbox},
-            "'$mailbox': found unexpected extra mailbox"
-        );
-    }
-}
-
 sub test_empty_mailbox
     :UnixHierarchySep
 {
@@ -208,7 +84,7 @@ sub test_empty_mailbox
 
     my $data = $imaptalk->list("", "");
 
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         '' => [ '\\Noselect' ],
     });
 }
@@ -224,7 +100,7 @@ sub test_outlook_compatible_xlist_empty_mailbox
 
     $self->assert(ref $data, "expected list response, got scalar: $data");
 
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         '' => [ '\\Noselect' ],
     });
 }
@@ -237,7 +113,9 @@ sub test_rfc5258_ex01_list_all
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'subscribe' => 'INBOX' ],
         [ 'create' => [qw( Fruit Fruit/Apple Fruit/Banana Fruit/Peach)] ],
         [ 'subscribe' => [qw( Fruit/Banana Fruit/Peach )] ],
@@ -246,11 +124,9 @@ sub test_rfc5258_ex01_list_all
         [ 'subscribe' => [qw( Vegetable Vegetable/Broccoli )] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
-
     my $alldata = $imaptalk->list("", "*");
 
-    $self->_assert_list_data($alldata, '/', {
+    $self->assert_mailbox_structure($alldata, '/', {
         'INBOX'                 => [qw( \\HasNoChildren )],
         'Fruit'                 => [qw( \\HasChildren )],
         'Fruit/Apple'           => [qw( \\HasNoChildren )],
@@ -267,7 +143,9 @@ sub test_recursivematch
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'subscribe' => 'INBOX' ],
         [ 'create' => [qw( Fruit Fruit/Apple Fruit/Banana Fruit/Peach)] ],
         [ 'subscribe' => [qw( Fruit/Banana Fruit/Peach )] ],
@@ -276,12 +154,10 @@ sub test_recursivematch
         [ 'subscribe' => [qw( Vegetable Vegetable/Broccoli )] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
-
     my $subdata = $imaptalk->list([qw(SUBSCRIBED RECURSIVEMATCH)], "", "*");
 
     xlog(Dumper $subdata);
-    $self->_assert_list_data($subdata, '/', {
+    $self->assert_mailbox_structure($subdata, '/', {
         'INBOX'                 => '\\Subscribed',
         'Fruit/Banana'          => '\\Subscribed',
         'Fruit/Peach'           => [qw( \\NonExistent \\Subscribed )],
@@ -295,7 +171,9 @@ sub test_recursivematch_percent
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'subscribe' => 'INBOX' ],
         [ 'create' => [qw( Fruit Fruit/Apple Fruit/Banana Fruit/Peach)] ],
         [ 'subscribe' => [qw( Fruit/Banana Fruit/Peach )] ],
@@ -304,12 +182,10 @@ sub test_recursivematch_percent
         [ 'subscribe' => [qw( Vegetable Vegetable/Broccoli )] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
-
     my $subdata = $imaptalk->list([qw(SUBSCRIBED RECURSIVEMATCH)], "", "%");
 
     xlog(Dumper $subdata);
-    $self->_assert_list_data($subdata, '/', {
+    $self->assert_mailbox_structure($subdata, '/', {
         'INBOX'                 => [qw(  \\Subscribed )],
         'Fruit'                 => [qw( \\NonExistent \\HasChildren )],
         'Vegetable'             => [qw( \\Subscribed \\HasChildren )], # HasChildren not required by spec, but cyrus tells us
@@ -321,7 +197,9 @@ sub test_rfc5258_ex02_list_subscribed
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'subscribe' => 'INBOX' ],
         [ 'create' => [qw( Fruit Fruit/Apple Fruit/Banana Fruit/Peach)] ],
         [ 'subscribe' => [qw( Fruit/Banana Fruit/Peach )] ],
@@ -330,12 +208,10 @@ sub test_rfc5258_ex02_list_subscribed
         [ 'subscribe' => [qw( Vegetable Vegetable/Broccoli )] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
-
     my $subdata = $imaptalk->list([qw(SUBSCRIBED)], "", "*");
 
     xlog(Dumper $subdata);
-    $self->_assert_list_data($subdata, '/', {
+    $self->assert_mailbox_structure($subdata, '/', {
         'INBOX'                 => '\\Subscribed',
         'Fruit/Banana'          => '\\Subscribed',
         'Fruit/Peach'           => [qw( \\NonExistent \\Subscribed )],
@@ -349,7 +225,9 @@ sub test_list_subscribed_return_children
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'subscribe' => 'INBOX' ],
         [ 'create' => [qw( Fruit Fruit/Apple Fruit/Banana Fruit/Peach)] ],
         [ 'subscribe' => [qw( Fruit/Banana Fruit/Peach )] ],
@@ -358,13 +236,11 @@ sub test_list_subscribed_return_children
         [ 'subscribe' => [qw( Vegetable )] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
-
     xlog $self, "listing...";
     my $subdata = $imaptalk->list([qw(SUBSCRIBED)], "", "*", "RETURN", [qw(CHILDREN)]);
 
     xlog $self, "subscribed to: " . Dumper $subdata;
-    $self->_assert_list_data($subdata, '/', {
+    $self->assert_mailbox_structure($subdata, '/', {
         'INBOX'                 => [qw( \\Subscribed \\HasNoChildren )],
         'Fruit/Banana'          => [qw( \\Subscribed \\HasNoChildren )],
         'Fruit/Peach'           => [qw( \\NonExistent \\Subscribed \\HasNoChildren )],
@@ -377,7 +253,9 @@ sub test_list_subscribed_return_children_noaltns
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'subscribe' => 'INBOX' ],
         [ 'create' => [qw( INBOX/Fruit INBOX/Fruit/Apple INBOX/Fruit/Banana
                            INBOX/Fruit/Peach )] ],
@@ -388,13 +266,11 @@ sub test_list_subscribed_return_children_noaltns
         [ 'subscribe' => [qw( INBOX/Vegetable )] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
-
     xlog $self, "listing...";
     my $subdata = $imaptalk->list([qw(SUBSCRIBED)], "", "*", "RETURN", [qw(CHILDREN)]);
 
     xlog $self, "subscribed to: " . Dumper $subdata;
-    $self->_assert_list_data($subdata, '/', {
+    $self->assert_mailbox_structure($subdata, '/', {
         'INBOX'                 => [qw( \\Subscribed \\HasChildren )],
         'INBOX/Fruit/Banana'    => [qw( \\Subscribed \\HasNoChildren )],
         'INBOX/Fruit/Peach'     => [qw( \\NonExistent \\Subscribed \\HasNoChildren )],
@@ -407,7 +283,9 @@ sub test_list_return_subscribed
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'subscribe' => 'INBOX' ],
         [ 'create' => [qw( Fruit Fruit/Apple Fruit/Banana Fruit/Peach)] ],
         [ 'subscribe' => [qw( Fruit/Banana Fruit/Peach )] ],
@@ -416,12 +294,10 @@ sub test_list_return_subscribed
         [ 'subscribe' => [qw( Vegetable Vegetable/Broccoli )] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
-
     my $subdata = $imaptalk->list([qw()], "", "*", 'RETURN', [qw(SUBSCRIBED)]);
 
     xlog(Dumper $subdata);
-    $self->_assert_list_data($subdata, '/', {
+    $self->assert_mailbox_structure($subdata, '/', {
         'INBOX'                 => [qw( \\Subscribed \\HasNoChildren )],
         'Fruit'                 => [qw( \\HasChildren )],
         'Fruit/Apple'           => [qw( \\HasNoChildren )],
@@ -438,7 +314,9 @@ sub test_rfc5258_ex03_children
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'subscribe' => 'INBOX' ],
         [ 'create' => [qw( Fruit Fruit/Apple Fruit/Banana Fruit/Peach)] ],
         [ 'subscribe' => [qw( Fruit/Banana Fruit/Peach )] ],
@@ -447,13 +325,11 @@ sub test_rfc5258_ex03_children
         [ 'subscribe' => [qw( Vegetable Vegetable/Broccoli )] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
-
     my $data = $imaptalk->list(
         [qw()], "", "%", 'RETURN', [qw(CHILDREN)],
     );
 
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX' => [ '\\HasNoChildren' ],
         'Fruit' => [ '\\HasChildren' ],
         'Tofu'  => [ '\\HasNoChildren' ],
@@ -485,7 +361,9 @@ sub test_rfc5258_ex07_multiple_mailbox_patterns
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'create' => 'Drafts' ],
         [ 'create' => [qw(
             Sent Sent/March2004 Sent/December2003 Sent/August2004
@@ -493,11 +371,9 @@ sub test_rfc5258_ex07_multiple_mailbox_patterns
         [ 'create' => [qw( Unlisted Unlisted/Foo )] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
-
     my $data = $imaptalk->list("", [qw( INBOX Drafts Sent/% )]);
 
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX' => [ '\\HasNoChildren' ],
         'Drafts' => [ '\\HasNoChildren' ],
         'Sent/August2004' => [ '\\HasNoChildren' ],
@@ -511,15 +387,15 @@ sub test_rfc5258_ex08_haschildren_childinfo
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'create' => [qw( Foo Foo/Bar Foo/Baz Moo )] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
-
     my $data = $imaptalk->list("", "%", "RETURN", [qw( CHILDREN )]);
 
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX' => '\\HasNoChildren',
         'Foo'   => '\\HasChildren',
         'Moo'   => '\\HasNoChildren',
@@ -552,15 +428,15 @@ sub test_folder_at_novirtdomains
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'create' => [qw( foo@bar )] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
-
     my $data = $imaptalk->list("", "%", "RETURN", [qw( CHILDREN )]);
 
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX' => '\\HasNoChildren',
         'foo@bar' => '\\HasNoChildren',
     });
@@ -583,7 +459,7 @@ sub test_crossdomains
 
     my $data = $imaptalk->list("", "*");
 
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX' => '\\HasNoChildren',
         'user/foo@example.com' => '\\HasNoChildren',
         'user/bar@example.net/Shared' => '\\HasNoChildren',
@@ -607,7 +483,7 @@ sub test_crossdomains_alt
 
     my $data = $imaptalk->list("", "*");
 
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX' => '\\HasNoChildren',
         'Other Users/foo@example.com' => '\\HasNoChildren',
         'Other Users/bar@example.net/Shared' => '\\HasNoChildren',
@@ -636,7 +512,7 @@ sub test_inbox_altnamespace
 
     my $data = $imaptalk->list("", "*");
 
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX' => '\\HasChildren',
         'INBOX/sub' => '\\HasNoChildren',
         'INBOX/very/deep/one' => '\\HasNoChildren',
@@ -651,7 +527,7 @@ sub test_inbox_altnamespace
 
     my $data2 = $imaptalk->list("", "%");
 
-    $self->_assert_list_data($data2, '/', {
+    $self->assert_mailbox_structure($data2, '/', {
         'INBOX' => '\\HasChildren',
         'AEARLY' => '\\HasNoChildren',
         'not' => '\\HasChildren \\Noselect',
@@ -661,7 +537,7 @@ sub test_inbox_altnamespace
 
     my $data3 = $imaptalk->list("", "INBOX/%");
 
-    $self->_assert_list_data($data3, '/', {
+    $self->assert_mailbox_structure($data3, '/', {
         'INBOX/sub' => '\\HasNoChildren',
         'INBOX/very' => '\\HasChildren \\Noselect',
     });
@@ -702,7 +578,7 @@ sub test_percent
 
     xlog $self, "List *";
     my $data = $imaptalk->list("", "*");
-    $self->_assert_list_data($data, '.', {
+    $self->assert_mailbox_structure($data, '.', {
         'INBOX' => '\\HasChildren',
         'INBOX.INBOX' => '\\HasChildren',
         'INBOX.INBOX.sub' => '\\HasNoChildren',
@@ -722,7 +598,7 @@ sub test_percent
 
     #xlog $self, "LIST %";
     #$data = $imaptalk->list("", "%");
-    #$self->_assert_list_data($data, '.', {
+    #$self->assert_mailbox_structure($data, '.', {
         #'INBOX' => '\\HasChildren',
         #'user' => '\\Noselect \\HasChildren',
         #'shared stuff' => '\\Noselect \\HasChildren',
@@ -730,7 +606,7 @@ sub test_percent
 
     xlog $self, "List *%";
     $data = $imaptalk->list("", "*%");
-    $self->_assert_list_data($data, '.', {
+    $self->assert_mailbox_structure($data, '.', {
         'INBOX' => '\\HasChildren',
         'INBOX.INBOX' => '\\HasChildren',
         'INBOX.INBOX.sub' => '\\HasNoChildren',
@@ -761,7 +637,7 @@ sub test_percent
 
     xlog $self, "LIST INBOX.*";
     $data = $imaptalk->list("INBOX.", "*");
-    $self->_assert_list_data($data, '.', {
+    $self->assert_mailbox_structure($data, '.', {
         'INBOX.INBOX' => '\\HasChildren',
         'INBOX.INBOX.sub' => '\\HasNoChildren',
         'INBOX.INBOX.very.deep.one' => '\\HasNoChildren',
@@ -776,7 +652,7 @@ sub test_percent
 
     xlog $self, "LIST INBOX.*%";
     $data = $imaptalk->list("INBOX.", "*%");
-    $self->_assert_list_data($data, '.', {
+    $self->assert_mailbox_structure($data, '.', {
         'INBOX.INBOX' => '\\HasChildren',
         'INBOX.INBOX.sub' => '\\HasNoChildren',
         'INBOX.INBOX.very' => '\\Noselect \\HasChildren',
@@ -798,7 +674,7 @@ sub test_percent
 
     xlog $self, "LIST INBOX.%";
     $data = $imaptalk->list("INBOX.", "%");
-    $self->_assert_list_data($data, '.', {
+    $self->assert_mailbox_structure($data, '.', {
         'INBOX.INBOX' => '\\HasChildren',
         'INBOX.Inbox' => '\\Noselect \\HasChildren',
         'INBOX.inbox' => '\\HasChildren',
@@ -809,7 +685,7 @@ sub test_percent
 
     xlog $self, "List user.*";
     $data = $imaptalk->list("user.", "*");
-    $self->_assert_list_data($data, '.', {
+    $self->assert_mailbox_structure($data, '.', {
         'user.bar.Trash' => '\\HasNoChildren',
         'user.foo' => '\\HasChildren',
         'user.foo.really.deep' => '\\HasNoChildren',
@@ -817,7 +693,7 @@ sub test_percent
 
     xlog $self, "List user.*%";
     $data = $imaptalk->list("user.", "*%");
-    $self->_assert_list_data($data, '.', {
+    $self->assert_mailbox_structure($data, '.', {
         'user.bar' => '\\Noselect \\HasChildren',
         'user.bar.Trash' => '\\HasNoChildren',
         'user.foo' => '\\HasChildren',
@@ -827,7 +703,7 @@ sub test_percent
 
     #xlog $self, "List user.%";
     #$data = $imaptalk->list("user.", "%");
-    #$self->_assert_list_data($data, '.', {
+    #$self->assert_mailbox_structure($data, '.', {
     #    'user.bar' => '\\Noselect \\HasChildren',
     #    'user.foo' => '\\HasChildren',
     #});
@@ -870,7 +746,7 @@ sub test_percent_altns
 
     xlog $self, "List *";
     my $data = $imaptalk->list("", "*");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX' => '\\HasChildren',
         'INBOX/sub' => '\\HasNoChildren',
         'INBOX/very/deep/one' => '\\HasNoChildren',
@@ -890,7 +766,7 @@ sub test_percent_altns
 
     xlog $self, "List *%";
     $data = $imaptalk->list("", "*%");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX' => '\\HasChildren',
         'INBOX/sub' => '\\HasNoChildren',
         'INBOX/very' => '\\Noselect \\HasChildren',
@@ -923,7 +799,7 @@ sub test_percent_altns
 
     xlog $self, "List %";
     $data = $imaptalk->list("", "%");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX' => '\\HasChildren',
         'AEARLY' => '\\HasNoChildren',
         'not' => '\\Noselect \\HasChildren',
@@ -937,14 +813,14 @@ sub test_percent_altns
 
     xlog $self, "List INBOX/*";
     $data = $imaptalk->list("INBOX/", "*");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX/sub' => '\\HasNoChildren',
         'INBOX/very/deep/one' => '\\HasNoChildren',
     });
 
     xlog $self, "List INBOX/*%";
     $data = $imaptalk->list("INBOX/", "*%");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX/sub' => '\\HasNoChildren',
         'INBOX/very' => '\\Noselect \\HasChildren',
         'INBOX/very/deep' => '\\Noselect \\HasChildren',
@@ -953,44 +829,44 @@ sub test_percent_altns
 
     xlog $self, "List INBOX/%";
     $data = $imaptalk->list("INBOX/", "%");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX/sub' => '\\HasNoChildren',
         'INBOX/very' => '\\Noselect \\HasChildren',
     });
 
     xlog $self, "List AEARLY/*";
     $data = $imaptalk->list("AEARLY/", "*");
-    $self->_assert_list_data($data, '/', {});
+    $self->assert_mailbox_structure($data, '/', {});
 
     xlog $self, "List AEARLY/*%";
     $data = $imaptalk->list("AEARLY/", "*%");
-    $self->_assert_list_data($data, '/', {});
+    $self->assert_mailbox_structure($data, '/', {});
 
     xlog $self, "List AEARLY/%";
     $data = $imaptalk->list("AEARLY/", "%");
-    $self->_assert_list_data($data, '/', {});
+    $self->assert_mailbox_structure($data, '/', {});
 
     xlog $self, "List sub2/*";
     $data = $imaptalk->list("sub2/", "*");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'sub2/achild' => '\\HasNoChildren',
     });
 
     xlog $self, "List sub2/*%";
     $data = $imaptalk->list("sub2/", "*%");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'sub2/achild' => '\\HasNoChildren',
     });
 
     xlog $self, "List sub2/%";
     $data = $imaptalk->list("sub2/", "%");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'sub2/achild' => '\\HasNoChildren',
     });
 
     xlog $self, "List Alt Folders/*";
     $data = $imaptalk->list("Alt Folders/", "*");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'Alt Folders/INBOX' => '\\HasNoChildren \\Noinferiors',
         'Alt Folders/inbox' => '\\HasChildren',
         'Alt Folders/inbox/subnobody/deep' => '\\HasNoChildren',
@@ -999,7 +875,7 @@ sub test_percent_altns
 
     xlog $self, "List Alt Folders/*%";
     $data = $imaptalk->list("Alt Folders/", "*%");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'Alt Folders/INBOX' => '\\HasNoChildren \\Noinferiors',
         'Alt Folders/inbox' => '\\HasChildren',
         'Alt Folders/inbox/subnobody' => '\\Noselect \\HasChildren',
@@ -1011,7 +887,7 @@ sub test_percent_altns
 
     xlog $self, "List Alt Folders/%";
     $data = $imaptalk->list("Alt Folders/", "%");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'Alt Folders/INBOX' => '\\HasNoChildren \\Noinferiors',
         'Alt Folders/inbox' => '\\HasChildren',
         'Alt Folders/Inbox' => '\\Noselect \\HasChildren',
@@ -1019,13 +895,13 @@ sub test_percent_altns
 
     xlog $self, "List Other Users";
     $data = $imaptalk->list("", "Other Users");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'Other Users' => '\\Noselect \\HasChildren',
     });
 
     xlog $self, "List Other Users/*";
     $data = $imaptalk->list("Other Users/", "*");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'Other Users/bar@defdomain/Trash' => '\\HasNoChildren',
         'Other Users/foo@defdomain' => '\\HasChildren',
         'Other Users/foo@defdomain/really/deep' => '\\HasNoChildren',
@@ -1033,7 +909,7 @@ sub test_percent_altns
 
     xlog $self, "List Other Users/*%";
     $data = $imaptalk->list("Other Users/", "*%");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'Other Users/bar@defdomain' => '\\Noselect \\HasChildren',
         'Other Users/bar@defdomain/Trash' => '\\HasNoChildren',
         'Other Users/foo@defdomain' => '\\HasChildren',
@@ -1043,7 +919,7 @@ sub test_percent_altns
 
     xlog $self, "List Other Users/%";
     $data = $imaptalk->list("Other Users/", "%");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'Other Users/bar@defdomain' => '\\Noselect \\HasChildren',
         'Other Users/foo@defdomain' => '\\HasChildren',
     });
@@ -1062,11 +938,12 @@ sub bogus_test_rfc6154_ex01_list_non_extended
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'create' => [qw( ToDo Projects Projects/Foo SentMail MyDrafts Trash) ] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
     $imaptalk->setmetadata("SentMail", "/private/specialuse", "\\Sent");
     $self->assert_equals('ok', $imaptalk->get_last_completion_response());
 
@@ -1078,7 +955,7 @@ sub bogus_test_rfc6154_ex01_list_non_extended
 
     my $alldata = $imaptalk->list("", "%");
 
-    $self->_assert_list_data($alldata, '/', {
+    $self->assert_mailbox_structure($alldata, '/', {
         'INBOX'                 => [qw( \\HasNoChildren )],
         'ToDo'                  => [qw( \\HasNoChildren )],
         'Projects'              => [qw( \\HasChildren )],
@@ -1093,11 +970,12 @@ sub test_rfc6154_ex02a_list_return_special_use
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'create' => [qw( ToDo Projects Projects/Foo SentMail MyDrafts Trash) ] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
     $imaptalk->setmetadata("SentMail", "/private/specialuse", "\\Sent");
     $self->assert_equals('ok', $imaptalk->get_last_completion_response());
 
@@ -1109,7 +987,7 @@ sub test_rfc6154_ex02a_list_return_special_use
 
     my $alldata = $imaptalk->list("", "%", 'RETURN', [qw( SPECIAL-USE )]);
 
-    $self->_assert_list_data($alldata, '/', {
+    $self->assert_mailbox_structure($alldata, '/', {
         'INBOX'                 => [qw( \\HasNoChildren )],
         'ToDo'                  => [qw( \\HasNoChildren )],
         'Projects'              => [qw( \\HasChildren )],
@@ -1124,11 +1002,12 @@ sub test_rfc6154_ex02b_list_special_use
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'create' => [qw( ToDo Projects Projects/Foo SentMail MyDrafts Trash) ] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
     $imaptalk->setmetadata("SentMail", "/private/specialuse", "\\Sent");
     $self->assert_equals('ok', $imaptalk->get_last_completion_response());
 
@@ -1140,7 +1019,7 @@ sub test_rfc6154_ex02b_list_special_use
 
     my $alldata = $imaptalk->list([qw( SPECIAL-USE )], "", "%");
 
-    $self->_assert_list_data($alldata, '/', {
+    $self->assert_mailbox_structure($alldata, '/', {
         'SentMail'              => [qw( \\Sent \\HasNoChildren )],
         'MyDrafts'              => [qw( \\Drafts \\HasNoChildren )],
         'Trash'                 => [qw( \\Trash \\HasNoChildren )],
@@ -1152,12 +1031,13 @@ sub test_list_special_use_return_subscribed
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'create' => [qw( ToDo Projects Projects/Foo SentMail MyDrafts Trash) ] ],
         [ 'subscribe' => [qw( SentMail Trash) ] ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
     $imaptalk->setmetadata("SentMail", "/private/specialuse", "\\Sent");
     $self->assert_equals('ok', $imaptalk->get_last_completion_response());
 
@@ -1171,7 +1051,7 @@ sub test_list_special_use_return_subscribed
                                   'RETURN', [qw(SUBSCRIBED)]);
 
     xlog $self, Dumper $alldata;
-    $self->_assert_list_data($alldata, '/', {
+    $self->assert_mailbox_structure($alldata, '/', {
         'SentMail'              => [qw( \\Sent \\HasNoChildren \\Subscribed )],
         'MyDrafts'              => [qw( \\Drafts \\HasNoChildren )],
         'Trash'                 => [qw( \\Trash \\HasNoChildren \\Subscribed )],
@@ -1210,7 +1090,7 @@ sub test_virtdomains_return_subscribed_altns
                                     'RETURN', [qw(SUBSCRIBED)]);
 
     xlog $self, Dumper $specialuse;
-    $self->_assert_list_data($specialuse, '/', {
+    $self->assert_mailbox_structure($specialuse, '/', {
         'Sent'              => [qw( \\Sent \\HasNoChildren \\Subscribed )],
         'Drafts'            => [qw( \\Drafts \\HasNoChildren  \\Subscribed )],
     });
@@ -1235,7 +1115,7 @@ sub test_virtdomains_return_subscribed_altns
     my $alldata = $footalk->list("", "*", 'RETURN', [qw(SUBSCRIBED)]);
 
     xlog $self, Dumper $alldata;
-    $self->_assert_list_data($alldata, '/', {
+    $self->assert_mailbox_structure($alldata, '/', {
         'INBOX'         => [qw( \\HasNoChildren \\Subscribed )],
         'Drafts'        => [qw( \\HasNoChildren \\Subscribed )],
         'Sent'          => [qw( \\HasNoChildren \\Subscribed )],
@@ -1280,7 +1160,7 @@ sub test_virtdomains_return_subscribed_noaltns
                                     'RETURN', [qw(SUBSCRIBED)]);
 
     xlog $self, Dumper $specialuse;
-    $self->_assert_list_data($specialuse, '/', {
+    $self->assert_mailbox_structure($specialuse, '/', {
         'INBOX/Sent'              => [qw( \\Sent \\HasNoChildren \\Subscribed )],
         'INBOX/Drafts'            => [qw( \\Drafts \\HasNoChildren  \\Subscribed )],
     });
@@ -1306,7 +1186,7 @@ sub test_virtdomains_return_subscribed_noaltns
     my $alldata = $footalk->list("", "*", 'RETURN', [qw(SUBSCRIBED)]);
 
     xlog $self, Dumper $alldata;
-    $self->_assert_list_data($alldata, '/', {
+    $self->assert_mailbox_structure($alldata, '/', {
         'INBOX'         => [qw( \\HasChildren \\Subscribed )],
         'INBOX/Drafts'  => [qw( \\HasNoChildren \\Subscribed )],
         'INBOX/Sent'    => [qw( \\HasNoChildren \\Subscribed )],
@@ -1322,18 +1202,18 @@ sub test_delete_nounsubscribe
 {
     my ($self) = @_;
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'subscribe' => 'INBOX' ],
         [ 'create' => [qw( deltest deltest/sub1 deltest/sub2 )] ],
         [ 'subscribe' => [qw( deltest deltest/sub2 )] ],
         [ 'delete' => 'deltest/sub2' ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
-
     my $subdata = $imaptalk->list([qw(SUBSCRIBED)], "", "*");
 
-    $self->_assert_list_data($subdata, '/', {
+    $self->assert_mailbox_structure($subdata, '/', {
         'INBOX'         => '\\Subscribed',
         'deltest'       => [qw( \\Subscribed )],
         'deltest/sub2'  => [qw( \\NonExistent \\Subscribed )],
@@ -1348,18 +1228,18 @@ sub test_delete_unsubscribe
     $self->{instance}->{config}->set('delete_unsubscribe' => 'yes');
     $self->_start_instances();
 
-    $self->_install_test_data([
+    my $imaptalk = $self->{store}->get_client();
+
+    $self->setup_mailbox_structure($imaptalk, [
         [ 'subscribe' => 'INBOX' ],
         [ 'create' => [qw( deltest deltest/sub1 deltest/sub2 )] ],
         [ 'subscribe' => [qw( deltest deltest/sub2 )] ],
         [ 'delete' => 'deltest/sub2' ],
     ]);
 
-    my $imaptalk = $self->{store}->get_client();
-
     my $subdata = $imaptalk->list([qw(SUBSCRIBED)], "", "*");
 
-    $self->_assert_list_data($subdata, '/', {
+    $self->assert_mailbox_structure($subdata, '/', {
         'INBOX'        => '\\Subscribed',
         'deltest'      => '\\Subscribed',
     });
@@ -1384,7 +1264,7 @@ sub test_dotuser_gh1875_virt
     my $data = $footalk->list("", "*");
 
     xlog $self, Dumper $data;
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX'             => [qw( \\HasChildren )],
         'INBOX/Sent'        => [qw( \\HasNoChildren )],
         'INBOX/Drafts'      => [qw( \\HasNoChildren )],
@@ -1411,7 +1291,7 @@ sub test_dotuser_gh1875_novirt
     my $data = $footalk->list("", "*");
 
     xlog $self, Dumper $data;
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX'             => [qw( \\HasChildren )],
         'INBOX/Sent'        => [qw( \\HasNoChildren )],
         'INBOX/Drafts'      => [qw( \\HasNoChildren )],
@@ -1438,7 +1318,7 @@ sub test_dotuser_gh1875_virt_altns
     my $data = $footalk->list("", "*");
 
     xlog $self, Dumper $data;
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX'       => [qw( \\HasNoChildren )],
         'Sent'        => [qw( \\HasNoChildren )],
         'Drafts'      => [qw( \\HasNoChildren )],
@@ -1465,7 +1345,7 @@ sub test_dotuser_gh1875_novirt_altns
     my $data = $footalk->list("", "*");
 
     xlog $self, Dumper $data;
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'INBOX'       => [qw( \\HasNoChildren )],
         'Sent'        => [qw( \\HasNoChildren )],
         'Drafts'      => [qw( \\HasNoChildren )],
@@ -1505,17 +1385,17 @@ sub test_otherusers_pattern
     my $data;
 
     $data = $casstalk->list("", "user.%");
-    $self->_assert_list_data($data, '.', {
+    $self->assert_mailbox_structure($data, '.', {
         'user.foo'                  => [qw( \\HasChildren )],
     });
 
     $data = $casstalk->list("", "user.foo.%");
-    $self->_assert_list_data($data, '.', {
+    $self->assert_mailbox_structure($data, '.', {
         'user.foo.mytest'           => [qw( \\HasChildren )],
     });
 
     $data = $casstalk->list("", "user.foo.mytest.%");
-    $self->_assert_list_data($data, '.', {
+    $self->assert_mailbox_structure($data, '.', {
         'user.foo.mytest.mysubtest' => [qw( \\HasNoChildren )],
     });
 }
@@ -1553,17 +1433,17 @@ sub test_otherusers_pattern_unixhs
     my $data;
 
     $data = $casstalk->list("", "user/%");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'user/foo'                  => [qw( \\HasChildren )],
     });
 
     $data = $casstalk->list("", "user/foo/%");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'user/foo/mytest'           => [qw( \\HasChildren )],
     });
 
     $data = $casstalk->list("", "user/foo/mytest/%");
-    $self->_assert_list_data($data, '/', {
+    $self->assert_mailbox_structure($data, '/', {
         'user/foo/mytest/mysubtest' => [qw( \\HasNoChildren )],
     });
 }
