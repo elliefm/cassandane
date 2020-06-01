@@ -715,4 +715,118 @@ sub test_rename_nonspecialuse_altns
     });
 }
 
+sub test_rename_annotated_noaltns
+{
+    my ($self) = @_;
+
+    my $frontend = $self->{frontend_store}->get_client();
+    my $backend = $self->{backend1_store}->get_client();
+
+    # XXX setup_mailbox_structure can't handle setmetadata
+    $frontend->create('INBOX.foo');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    $frontend->subscribe('INBOX.foo');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    $frontend->setmetadata('INBOX.foo', '/private/comment', 'tasteful');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    # frontend and backend should have the same mailboxes
+    my $fresult = $frontend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+    $self->assert_mailbox_structure($fresult, '.', {
+        'INBOX'     => '\\HasChildren',
+        'INBOX.foo' => [qw(\\HasNoChildren \\Subscribed)],
+    });
+    my $fannot = $frontend->getmetadata('*', '/private/comment');
+    xlog "frontend annotations: " . Dumper $fannot;
+    $self->assert_str_equals('tasteful',
+                             $fannot->{'INBOX.foo'}{'/private/comment'});
+
+    my $bresult = $backend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $backend->get_last_completion_response());
+    $self->assert_mailbox_structure($bresult, '.', {
+        'INBOX'     => '\\HasChildren',
+        'INBOX.foo' => [qw(\\HasNoChildren \\Subscribed)],
+    });
+    my $bannot = $backend->getmetadata('*', '/private/comment');
+    xlog "backend annotations: " . Dumper $bannot;
+    $self->assert_str_equals('tasteful',
+                             $bannot->{'INBOX.foo'}{'/private/comment'});
+
+    # rename the mailbox
+    xlog $self, "delaying a moment before starting the rename";
+    sleep 3;
+    $frontend->rename('INBOX.foo', 'INBOX.bar');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    # frontend and backend should both have the new name, and not the old
+    $fresult = $frontend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+    $self->assert_mailbox_structure($fresult, '.', {
+        'INBOX'     => '\\HasChildren',
+        'INBOX.bar' => [qw(\\HasNoChildren)],
+    });
+    $fannot = $frontend->getmetadata('*', '/private/comment');
+    xlog "frontend annotations: " . Dumper $fannot;
+    $self->assert_str_equals('tasteful',
+                             $fannot->{'INBOX.bar'}{'/private/comment'});
+
+
+    $bresult = $backend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $backend->get_last_completion_response());
+    $self->assert_mailbox_structure($bresult, '.', {
+        'INBOX'     => '\\HasChildren',
+        'INBOX.bar' => [qw(\\HasNoChildren)],
+    });
+    $bannot = $backend->getmetadata('*', '/private/comment');
+    xlog "backend annotations: " . Dumper $bannot;
+    $self->assert_str_equals('tasteful',
+                             $bannot->{'INBOX.bar'}{'/private/comment'});
+
+    # try to reuse the original name -- should succeed!
+    xlog $self, "delaying a moment before recreating the original name";
+    sleep 3;
+
+    $frontend->create('INBOX.foo');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    $frontend->subscribe('INBOX.foo');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    # frontend and backend should each have both names now
+    $fresult = $frontend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+    $self->assert_mailbox_structure($fresult, '.', {
+        'INBOX'     => '\\HasChildren',
+        'INBOX.bar' => [qw(\\HasNoChildren)],
+        'INBOX.foo' => [qw(\\HasNoChildren \\Subscribed)],
+    });
+    $fannot = $frontend->getmetadata('*', '/private/comment');
+    xlog "frontend annotations: " . Dumper $fannot;
+    $self->assert_str_equals('tasteful',
+                             $fannot->{'INBOX.bar'}{'/private/comment'});
+
+
+    $bresult = $backend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $backend->get_last_completion_response());
+    $self->assert_mailbox_structure($bresult, '.', {
+        'INBOX'     => '\\HasChildren',
+        'INBOX.bar' => [qw(\\HasNoChildren)],
+        'INBOX.foo' => [qw(\\HasNoChildren \\Subscribed)],
+    });
+    $bannot = $backend->getmetadata('*', '/private/comment');
+    xlog "backend annotations: " . Dumper $bannot;
+    $self->assert_str_equals('tasteful',
+                             $bannot->{'INBOX.bar'}{'/private/comment'});
+
+}
+
 1;
