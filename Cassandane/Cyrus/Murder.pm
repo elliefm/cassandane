@@ -546,4 +546,173 @@ sub test_rename_specialuse_altns
     });
 }
 
+sub test_rename_nonspecialuse_noaltns
+{
+    my ($self) = @_;
+
+    my $frontend = $self->{frontend_store}->get_client();
+    my $backend = $self->{backend1_store}->get_client();
+
+    # XXX setup_mailbox_structure can't handle setmetadata
+    $frontend->create('INBOX.foo');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    $frontend->subscribe('INBOX.foo');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    # frontend and backend should have the same mailboxes
+    my $fresult = $frontend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+    $self->assert_mailbox_structure($fresult, '.', {
+        'INBOX'     => '\\HasChildren',
+        'INBOX.foo' => [qw(\\HasNoChildren \\Subscribed)],
+    });
+
+    my $bresult = $backend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $backend->get_last_completion_response());
+    $self->assert_mailbox_structure($bresult, '.', {
+        'INBOX'     => '\\HasChildren',
+        'INBOX.foo' => [qw(\\HasNoChildren \\Subscribed)],
+    });
+
+    # rename the mailbox
+    xlog $self, "delaying a moment before starting the rename";
+    sleep 3;
+    $frontend->rename('INBOX.foo', 'INBOX.bar');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    # frontend and backend should both have the new name, and not the old
+    $fresult = $frontend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+    $self->assert_mailbox_structure($fresult, '.', {
+        'INBOX'     => '\\HasChildren',
+        'INBOX.bar' => [qw(\\HasNoChildren)],
+    });
+
+    $bresult = $backend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $backend->get_last_completion_response());
+    $self->assert_mailbox_structure($bresult, '.', {
+        'INBOX'     => '\\HasChildren',
+        'INBOX.bar' => [qw(\\HasNoChildren)],
+    });
+
+    # try to reuse the original name -- should succeed!
+    xlog $self, "delaying a moment before recreating the original name";
+    sleep 3;
+
+    $frontend->create('INBOX.foo');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    $frontend->subscribe('INBOX.foo');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    # frontend and backend should each have both names now
+    $fresult = $frontend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+    $self->assert_mailbox_structure($fresult, '.', {
+        'INBOX'     => '\\HasChildren',
+        'INBOX.bar' => [qw(\\HasNoChildren)],
+        'INBOX.foo' => [qw(\\HasNoChildren \\Subscribed)],
+    });
+
+    $bresult = $backend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $backend->get_last_completion_response());
+    $self->assert_mailbox_structure($bresult, '.', {
+        'INBOX'     => '\\HasChildren',
+        'INBOX.bar' => [qw(\\HasNoChildren)],
+        'INBOX.foo' => [qw(\\HasNoChildren \\Subscribed)],
+    });
+}
+
+sub test_rename_nonspecialuse_altns
+    :AltNamespace
+{
+    my ($self) = @_;
+
+    my $frontend = $self->{frontend_store}->get_client();
+    my $backend = $self->{backend1_store}->get_client();
+
+    # XXX setup_mailbox_structure can't handle setmetadata
+    $frontend->create('foo');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    $frontend->subscribe('foo');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    # frontend and backend should have the same mailboxes
+    my $fresult = $frontend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+    $self->assert_mailbox_structure($fresult, '.', {
+        'INBOX' => '\\HasNoChildren',
+        'foo'   => [qw(\\HasNoChildren \\Subscribed)],
+    });
+
+    my $bresult = $backend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $backend->get_last_completion_response());
+    $self->assert_mailbox_structure($bresult, '.', {
+        'INBOX' => '\\HasNoChildren',
+        'foo'   => [qw(\\HasNoChildren \\Subscribed)],
+    });
+
+    # rename the mailbox
+    xlog $self, "delaying a moment before starting the rename";
+    sleep 3;
+    $frontend->rename('foo', 'bar');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    # frontend and backend should both have the new name, and not the old
+    $fresult = $frontend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+    $self->assert_mailbox_structure($fresult, '.', {
+        'INBOX' => '\\HasNoChildren',
+        'bar'   => [qw(\\HasNoChildren)],
+    });
+
+    $bresult = $backend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $backend->get_last_completion_response());
+    $self->assert_mailbox_structure($bresult, '.', {
+        'INBOX' => '\\HasNoChildren',
+        'bar'   => [qw(\\HasNoChildren)],
+    });
+
+    # try to reuse the original name -- should succeed!
+    xlog $self, "delaying a moment before recreating the original name";
+    sleep 3;
+
+    $frontend->create('foo');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    $frontend->subscribe('foo');
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+
+    # frontend and backend should each have both names now
+    $fresult = $frontend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $frontend->get_last_completion_response());
+    $self->assert_mailbox_structure($fresult, '.', {
+        'INBOX' => '\\HasNoChildren',
+        'bar'   => [qw(\\HasNoChildren)],
+        'foo'   => [qw(\\HasNoChildren \\Subscribed)],
+    });
+
+    $bresult = $backend->list("", "*",
+        'RETURN', [qw(SUBSCRIBED SPECIAL-USE)]);
+    $self->assert_str_equals('ok', $backend->get_last_completion_response());
+    $self->assert_mailbox_structure($bresult, '.', {
+        'INBOX' => '\\HasNoChildren',
+        'bar'   => [qw(\\HasNoChildren)],
+        'foo'   => [qw(\\HasNoChildren \\Subscribed)],
+    });
+}
+
 1;
