@@ -86,6 +86,15 @@ sub xlog
 
     # XXX WIP this is broken still
     # XXX the commit that added sub names was broken too!
+    # XXX
+    # XXX each call frame has:
+    # XXX   * name of the sub WE'RE IN
+    # XXX   * package and line number of HOW WE GOT HERE
+    # XXX
+    # XXX so to log "the sub and line that called us" we need
+    # XXX to collect this info kinda stepwise from two separate
+    # XXX iterations!
+    
     # let's be smart about which caller's details we log: if it
     # looks like a generic logging wrapper, go up another frame
     my ($package, $file, $line, $sub);
