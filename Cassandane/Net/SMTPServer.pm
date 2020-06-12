@@ -33,6 +33,14 @@ sub override {
     return 0;
 }
 
+# override Net::Server logger to use the Cassandane one
+sub log {
+    my ($Self, $Level, $Message) = @_;
+    if ($Level < 3 || $Self->{server}->{cass_verbose}) {
+        xlog $Message;
+    }
+}
+
 sub mylog {
     my $Self = shift;
     if ($Self->{server}->{cass_verbose}) {
@@ -42,14 +50,12 @@ sub mylog {
 
 sub new_connection {
     my ($Self) = @_;
-    $Self->mylog("SMTP: new connection");
     return if $Self->override('new');
     $Self->send_client_resp(220, "localhost ESMTP");
 }
 
 sub helo {
     my ($Self) = @_;
-    $Self->mylog("SMTP: HELO");
     return if $Self->override('helo');
     $Self->send_client_resp(250, "localhost",
                             "AUTH", "DSN", "SIZE 10000", "ENHANCEDSTATUSCODES");
@@ -57,7 +63,6 @@ sub helo {
 
 sub mail_from {
     my ($Self, $From, @FromExtra) = @_;
-    $Self->mylog("SMTP: MAIL FROM $From @FromExtra");
     return if $Self->override('from');
     # don't just quietly accept garbage!
     if ($From =~ m/[<>]/ || grep { m/[<>]/ } @FromExtra) {
@@ -68,7 +73,6 @@ sub mail_from {
 
 sub rcpt_to {
     my ($Self, $To, @ToExtra) = @_;
-    $Self->mylog("SMTP: RCPT TO $To @ToExtra");
     return if $Self->override('to');
 
     $Self->{_rcpt_to_count}++;
@@ -100,7 +104,6 @@ sub end_data {
 
 sub rset {
     my ($Self) = @_;
-    $Self->mylog("SMTP: RSET");
     return if $Self->override('rset');
     $Self->send_client_resp(250, "ok");
     return 0;
@@ -108,7 +111,6 @@ sub rset {
 
 sub quit {
     my ($Self) = @_;
-    $Self->mylog("SMTP: QUIT");
     return if $Self->override('quit');
     $Self->send_client_resp(221, "bye!");
 }
