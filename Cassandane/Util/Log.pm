@@ -85,6 +85,7 @@ sub xlog
     }
 
     # XXX WIP this is broken still
+    # XXX the commit that added sub names was broken too!
     # let's be smart about which caller's details we log: if it
     # looks like a generic logging wrapper, go up another frame
     my ($package, $file, $line, $sub);
