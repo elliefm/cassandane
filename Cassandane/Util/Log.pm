@@ -40,6 +40,7 @@
 package Cassandane::Util::Log;
 use strict;
 use warnings;
+use Data::Dumper;
 use Scalar::Util qw(blessed);
 use Sys::Syslog qw(:standard :macros);
 
@@ -56,12 +57,15 @@ openlog('cassandane', '', LOG_LOCAL6)
 
 sub _looks_like_log_wrapper
 {
-    my ($package, $sub) = @_;
+    print STDERR "wrapper? " . Dumper [@_];
+
+    my ($sub) = @_;
 
     # let's also skip over eval frames
     return 1 if $sub eq '(eval)';
 
-    return 1 if $package =~ m/::Log$/;
+    # looks like part of a logging package
+    return 1 if $sub =~ m/::Log::/;
 
     # n.b. sub field from caller() is the full disambiguated name
     my ($baresub) = reverse split /::/, $sub;
@@ -80,17 +84,22 @@ sub xlog
         $id = $obj->id();
     }
 
+    # XXX WIP this is broken still
     # let's be smart about which caller's details we log: if it
     # looks like a generic logging wrapper, go up another frame
-    my ($package, $line, $sub);
-    my $n = 1;
-    do {
-        my @c = caller($n);
-        last if not scalar @c;
+    my ($package, $file, $line, $sub);
+    my $n = 0;
+    while (my @c = caller ($n)) {
+        print STDERR "caller($n): " . Dumper \@c;
 
         ($package, undef, $line, $sub) = @c;
+
+        my $looks = _looks_like_log_wrapper($sub);
+        print STDERR "looks? [$looks]\n";
+        last if not _looks_like_log_wrapper($sub);
+
         $n++;
-    } while(_looks_like_log_wrapper($package, $sub));
+    }
 
     $sub =~ s/^Cassandane:://;
     my $msg = "=====> $sub\[$line] ";
