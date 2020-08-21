@@ -64,6 +64,7 @@ my $opt_ready;
 my $opt_exitearly;
 my $opt_requirepipe = 0;
 my $opt_shutdownfile;
+my $opt_exitcode = 0;
 my $shutdown = 0;
 
 # make sure normal signal exits don't bypass shutdown file
@@ -77,6 +78,7 @@ GetOptions(
     'exitearly=s',      \$opt_exitearly,
     'requirepipe',      \$opt_requirepipe,
     'shutdownfile=s',   \$opt_shutdownfile,
+    'exitcode=i',       \$opt_exitcode,
 );
 
 # XXX make sure ready is one of ok, short, bad, none
@@ -84,7 +86,7 @@ GetOptions(
 
 if (defined $opt_exitearly and $opt_exitearly eq 'before-ok') {
     syslog(LOG_INFO, 'exiting early due to --exitearly=before-ok');
-    exit 0;
+    exit $opt_exitcode;
 }
 
 if (defined $childready_pipe) {
@@ -109,7 +111,7 @@ elsif ($opt_requirepipe) {
 
 if (defined $opt_exitearly && $opt_exitearly eq 'after-ok') {
     syslog(LOG_INFO, 'exiting early due to --exitearly=after-ok');
-    exit 0;
+    exit $opt_exitcode;
 }
 
 while (!$shutdown) {
@@ -122,4 +124,4 @@ if ($opt_shutdownfile) {
     sleep 2;
 }
 
-exit 0;
+exit $opt_exitcode;
