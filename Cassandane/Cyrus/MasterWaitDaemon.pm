@@ -270,4 +270,46 @@ sub test_name_conflict
     $self->assert_matches(qr{Master no longer running}, $e)
 }
 
+sub test_repeated_failures
+    :NoMailbox :NoStartInstances :min_version_3_3
+{
+    my ($self) = @_;
+
+    # a waitdaemon that reports okay, but then exits with an error
+    $self->add_waitdaemon($self->{instance}, undef, {
+                            '--ready' => 'ok',
+                            '--exitearly' => 'after-ok',
+                            '--exitcode' => '42',
+                          });
+
+    $self->{instance}->start();
+
+    # master should be spinning trying to restart the bad waitdaemon,
+    # but it should not have exited!
+    sleep 3;
+    $self->assert_num_equals(1, $self->{instance}->is_running());
+
+    # master logs each abnormal failure, and also logs that it's
+    # repeatedly failing if it fails more than 5 times in any 10-second
+    # window.
+    # The three seconds above should've been plenty of time to trigger
+    # this, so we can collect the syslogs and stop master now.
+    my @syslog = $self->{instance}->getsyslog();
+    $self->{instance}->stop();
+
+    # make sure we saw at least 5 abnormal exits, otherwise we shouldn't
+    # expect to see the repeated failures error
+    my $abnormal_exits = scalar grep {
+        m/waitdaemon0\/daemon pid \d+ in READY state: terminated abnormally/
+    } @syslog;
+    $self->assert_num_gte(5, $abnormal_exits);
+
+    # after the 5th repeated failure, it should log each time, because
+    # our waitdaemon.pl never succeeds to calm it down
+    my $repeatedly_failings = scalar grep {
+        m/daemon waitdaemon0\/daemon is repeatedly failing/
+    } @syslog;
+    $self->assert_num_equals($abnormal_exits - 4, $repeatedly_failings);
+}
+
 1;
