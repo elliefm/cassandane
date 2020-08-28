@@ -99,7 +99,7 @@ sub new
 
     my $config = Cassandane::Config->default()->clone();
     $config->set(caldav_realm => 'Cassandane');
-    $config->set(httpmodules => 'caldav');
+    $config->set(httpmodules => 'caldav webdav');
     $config->set(httpallowcompress => 'no');
     $config->set(caldav_historical_age => -1);
     return $class->SUPER::new({
@@ -4367,6 +4367,61 @@ EOF
     $self->assert_str_equals('HTTP/1.1 200 OK', $propstat->{'{DAV:}status'}{content});
     $self->assert_str_equals('#2952A3', $propstat->{'{DAV:}prop'}{'{http://apple.com/ns/ical/}calendar-color'}{content});
 
+}
+
+sub test_propfind_displayname
+    :needs_component_httpd
+{
+    my ($self) = @_;
+
+    my $propfindXml = <<EOF;
+<?xml version="1.0" encoding="utf-8" ?>
+<D:propfind xmlns:D="DAV:">
+    <D:prop>
+        <D:creationdate/>
+        <D:displayname/>
+        <D:getcontentlength/>
+        <D:getcontenttype/>
+        <D:getetag/>
+        <D:getlastmodified/>
+        <D:resourcetype/>
+    </D:prop>
+</D:propfind>
+EOF
+
+    my $service = $self->{instance}->get_service("http");
+    my $CalDAV = Net::CalDAVTalk->new(
+        user => 'cassandane',
+        password => 'pass',
+        host => $service->host(),
+        port => $service->port(),
+        scheme => 'http',
+        url => '/',
+        expandurl => 1,
+    );
+
+#    my $CalendarId = $CalDAV->NewCalendar({name => 'mycalendar'});
+#    $self->assert_not_null($CalendarId);
+
+    my $response = $CalDAV->Request('PROPFIND',
+                        "/dav/drive/user/",
+                        $propfindXml, 'Content-Type' => 'text/xml');
+    xlog "response: " . Dumper $response;
+
+#    my $xml = <<EOF;
+#<?xml version="1.0" encoding="UTF-8"?>
+#<D:propertyupdate xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+#  <D:set>
+#    <D:prop>
+#      <D:displayname>foo</D:displayname>
+#    </D:prop>
+#  </D:set>
+#</D:propertyupdate>
+#EOF
+
+#    $response = $CalDAV->Request('PROPPATCH', "/dav/calendars/user/", $xml,
+#                       'Content-Type' => 'text/xml');
+#    xlog "response: " . Dumper $response;
 }
 
 sub test_header_cache_control
