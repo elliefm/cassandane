@@ -326,6 +326,11 @@ magic(LowEmailLimits => sub {
         conversations_max_guidinfolder => 2,
     );
 });
+magic(FullDirHash => sub {
+    shift->config_set(fulldirhash => 'yes');
+});
+# XXX maybe we should sort this list sometime...
+
 
 # Run any magic handlers indicated by the test name or attributes
 sub _run_magic
