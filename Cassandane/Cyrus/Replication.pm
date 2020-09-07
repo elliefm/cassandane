@@ -863,6 +863,8 @@ if address :is :all "From" "autoreject@example.org"
 }
 EOF
     $self->{instance}->create_user($user);
+    $self->run_replication(user=>$user);
+    $self->check_replication($user);
 
     # first, verify that sieve script does not exist on master or replica
     $self->assert_sieve_not_exists($self->{instance}, $user, $scriptname);
@@ -922,6 +924,8 @@ if address :is :all "From" "autoreject@example.org"
 }
 EOF
     $self->{instance}->create_user($user);
+    $self->run_replication(user=>$user);
+    $self->check_replication($user);
 
     # first, verify that neither script exists on master or replica
     $self->assert_sieve_not_exists($self->{instance}, $user, $script1name);
@@ -988,6 +992,8 @@ if address :is :all "From" "autoreject@example.org"
 }
 EOF
     $self->{instance}->create_user($user);
+    $self->run_replication(user=>$user);
+    $self->check_replication($user);
 
     # first, verify that script does not exist on master or replica
     $self->assert_sieve_not_exists($self->{instance}, $user, $scriptname);
@@ -1051,6 +1057,8 @@ if address :is :all "From" "autoreject@example.org"
 }
 EOF
     $self->{instance}->create_user($user);
+    $self->run_replication(user=>$user);
+    $self->check_replication($user);
 
     # first, verify that sieve script does not exist on master or replica
     $self->assert_sieve_not_exists($self->{instance}, $user, $scriptname);

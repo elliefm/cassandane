@@ -2127,33 +2127,67 @@ sub getdavdb
     return _get_sqldb($file);
 }
 
+# $cyrusname argument can be:
+# A) full Cyrus userid: returns that user's sieve path
+# B) userid with an empty localpart ('@domain.tld'): returns the domain's
+#    global sieve path
+# C) empty string (or undef): returns the system global sieve path
+#
+# On 3.2 and newer, synopsis A is implemented by calling out to mbpath, which
+# means fulldirhash:1 is supported for tests that use this usage.
+#
+# Synopses B and C, and synopsis A pre-3.2, use a bespoke implementation that
+# doesn't know about fulldirhash:1, and thus only work for fulldirhash:0
+# instances!
 sub get_sieve_script_dir
 {
     my ($self, $cyrusname) = @_;
 
     $cyrusname //= '';
 
-    my $sieved = "$self->{basedir}/conf/sieve";
-
+    my ($maj, $min) = $self->get_version();
     my ($user, $domain) = split '@', $cyrusname;
 
-    if ($domain) {
-        my $dhash = substr($domain, 0, 1);
-        $sieved .= "/domain/$dhash/$domain";
-    }
+    if ($user ne '' && ($maj > 3 || ($maj == 3 && $min >= 2))) {
+        # we have a user, just ask mbpath (since 3.2)
+        my $filename = $self->get_basedir() . "/$$-mbpath.out";
+        $self->run_command({
+            cyrus => 1,
+            redirects => {stdout => $filename},
+        }, 'mbpath', '-S', '-u', $cyrusname);
 
-    if ($user ne '')
-    {
-        my $uhash = substr($user, 0, 1);
-        $sieved .= "/$uhash/$user/";
-    }
-    else
-    {
-        # shared folder
-        $sieved .= '/global/';
-    }
+        open FH, '<', $filename
+            or die "Cannot open $filename for reading: $!";
+        my $str = <FH>;
+        close(FH);
 
-    return $sieved;
+        chomp $str;
+        return $str;
+    }
+    else {
+        # bespoke implementation
+        # XXX This DOES NOT support fulldirhash:1 config!
+        my $sieved = $self->{config}->get('sievedir');
+        $sieved = $self->{config}->substitute($sieved);
+
+        if ($domain) {
+            my $dhash = substr($domain, 0, 1);
+            $sieved .= "/domain/$dhash/$domain";
+        }
+
+        if ($user ne '')
+        {
+            my $uhash = substr($user, 0, 1);
+            $sieved .= "/$uhash/$user/";
+        }
+        else
+        {
+            # shared folder
+            $sieved .= '/global/';
+        }
+
+        return $sieved;
+    }
 }
 
 sub get_conf_user_file
