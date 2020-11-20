@@ -329,6 +329,11 @@ magic(LowEmailLimits => sub {
         conversations_max_guidinfolder => 2,
     );
 });
+magic(NoJunkTrashSubfolders => sub {
+    # this setting is new in 3.3 -- any test using this magic also
+    # needs :min_version_3_3
+    shift->config_set(allowjunktrashsubfolders => 'no');
+});
 
 # Run any magic handlers indicated by the test name or attributes
 sub _run_magic

@@ -228,5 +228,57 @@ sub test_important
     $self->assert_equals('no', $imaptalk->get_last_completion_response());
 }
 
+sub test_forbidden_subfolders
+    :min_version_3_3 :NoAltNameSpace :NoJunkTrashSubfolders
+{
+    my ($self) = @_;
+
+    my $imaptalk = $self->{store}->get_client();
+
+    $imaptalk->create("INBOX.Spam", "(USE (\\Junk))");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Spam.subfolder");
+    $self->assert_equals('no', $imaptalk->get_last_completion_response());
+
+    $imaptalk->setmetadata("INBOX.Spam", "/private/specialuse", undef);
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Spam.subfolder");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Trash", "(USE (\\Trash))");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Trash.subfolder");
+    $self->assert_equals('no', $imaptalk->get_last_completion_response());
+
+    $imaptalk->setmetadata("INBOX.Trash", "/private/specialuse", undef);
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Trash.subfolder");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+}
+
+sub test_unforbidden_subfolders
+    :min_version_3_3 :NoAltNameSpace
+{
+    my ($self) = @_;
+
+    my $imaptalk = $self->{store}->get_client();
+
+    $imaptalk->create("INBOX.Spam", "(USE (\\Junk))");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Spam.subfolder");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Trash", "(USE (\\Trash))");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Trash.subfolder");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+}
+
 # compile
 1;
