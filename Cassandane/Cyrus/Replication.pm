@@ -1684,4 +1684,32 @@ sub test_sync_log_mailbox_with_spaces
     # in the sync log :)
 }
 
+sub test_forbidden_subfolders
+    :min_version_3_3 :NoAltNameSpace :NoStartInstances
+{
+    my ($self) = @_;
+
+    # can we replicate junk/trash subfolders to somewhere that forbids them?
+    $self->{instance}->{config}->set('allowjunktrashsubfolders' => 'yes');
+    $self->{replica}->{config}->set('allowjunktrashsubfolders' => 'no');
+    $self->_start_instances();
+
+    my $imaptalk = $self->{store}->get_client();
+
+    $imaptalk->create("INBOX.Spam", "(USE (\\Junk))");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Spam.subfolder");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Trash", "(USE (\\Trash))");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Trash.subfolder");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $self->run_replication(user => 'cassandane');
+    $self->check_replication('cassandane');
+}
+
 1;
