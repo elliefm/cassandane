@@ -1435,6 +1435,62 @@ sub test_mailbox_set_inbox_children
     $self->assert_str_equals("INBOX,INBOX.C,INBOX.C.bar,INBOX.INBOX.B,INBOX.INBOX.sl,INBOX.tl", $mb);
 }
 
+sub test_mailbox_set_junktrash_children
+    :min_version_3_3 :needs_component_jmap
+    :NoAltNameSpace :NoJunkTrashSubfolders
+{
+    my ($self) = @_;
+
+    my $imaptalk = $self->{store}->get_client();
+
+    $imaptalk->create("INBOX.Spam", "(USE (\\Junk))");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Trash", "(USE (\\Trash))");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    my $jmap = $self->{jmap};
+
+    my $res = $jmap->CallMethods([['Mailbox/get',
+                    { properties => ['name', 'parentId', 'role']}, "R1"]]);
+    $self->assert_not_null($res);
+    $self->assert_str_equals('Mailbox/get', $res->[0][0]);
+    $self->assert_str_equals('R1', $res->[0][2]);
+
+    my %m = map { $_->{role} => $_ } @{$res->[0][1]{list}};
+
+    $self->{instance}->getsyslog();
+
+    $res = $jmap->CallMethods([['Mailbox/set', {
+        create => {
+            'junk-child' => { name => 'foo', parentId => $m{junk}->{id}},
+            'trash-child' => { name => 'bar', parentId => $m{trash}->{id}},
+        },
+    }, "R2"]]);
+
+    $self->assert_not_null($res);
+    $self->assert_str_equals('Mailbox/set', $res->[0][0]);
+    $self->assert_str_equals('R2', $res->[0][2]);
+    $self->assert_not_null($res->[0][1]->{notCreated});
+    $self->assert_deep_equals({
+        'junk-child' => {
+            'description' => 'Permission denied',
+            'type' => 'serverFail',
+        },
+        'trash-child' => {
+            'description' => 'Permission denied',
+            'type' => 'serverFail',
+        },
+    }, $res->[0][1]->{notCreated});
+
+    my @syslog = $self->{instance}->getsyslog();
+    if ($self->{instance}->{have_syslog_replacement}) {
+        $self->assert_num_equals(2, scalar grep
+                { m/user\.cassandane\.(?:Spam|Trash)\.(?:foo|bar)/ }
+                @syslog);
+    }
+}
+
 sub test_mailbox_set_nameclash
     :min_version_3_1 :needs_component_jmap
 {
