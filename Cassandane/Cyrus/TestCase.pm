@@ -332,7 +332,7 @@ magic(LowEmailLimits => sub {
 magic(NoJunkTrashSubfolders => sub {
     # this setting is new in 3.3 -- any test using this magic also
     # needs :min_version_3_3
-    shift->config_set(allowjunktrashsubfolders => 'no');
+    shift->config_set(specialuse_nochildren => '\\Junk \\Trash');
 });
 
 # Run any magic handlers indicated by the test name or attributes

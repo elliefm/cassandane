@@ -1690,8 +1690,9 @@ sub test_forbidden_subfolders
     my ($self) = @_;
 
     # can we replicate junk/trash subfolders to somewhere that forbids them?
-    $self->{instance}->{config}->set('allowjunktrashsubfolders' => 'yes');
-    $self->{replica}->{config}->set('allowjunktrashsubfolders' => 'no');
+    $self->{replica}->{config}->set(
+        'specialuse_nochildren' => '\\Junk \\Trash'
+    );
     $self->_start_instances();
 
     my $imaptalk = $self->{store}->get_client();
