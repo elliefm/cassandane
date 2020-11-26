@@ -247,6 +247,9 @@ sub test_forbidden_subfolders
     $imaptalk->create("INBOX.Spam.subfolder");
     $self->assert_equals('ok', $imaptalk->get_last_completion_response());
 
+    $imaptalk->setmetadata("INBOX.Spam", "/private/specialuse", '\\Junk');
+    $self->assert_equals('no', $imaptalk->get_last_completion_response());
+
     $imaptalk->create("INBOX.Trash", "(USE (\\Trash))");
     $self->assert_equals('ok', $imaptalk->get_last_completion_response());
 
@@ -258,6 +261,9 @@ sub test_forbidden_subfolders
 
     $imaptalk->create("INBOX.Trash.subfolder");
     $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->setmetadata("INBOX.Trash", "/private/specialuse", '\\Trash');
+    $self->assert_equals('no', $imaptalk->get_last_completion_response());
 }
 
 sub test_unforbidden_subfolders
@@ -273,10 +279,22 @@ sub test_unforbidden_subfolders
     $imaptalk->create("INBOX.Spam.subfolder");
     $self->assert_equals('ok', $imaptalk->get_last_completion_response());
 
+    $imaptalk->setmetadata("INBOX.Spam", "/private/specialuse", undef);
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->setmetadata("INBOX.Spam", "/private/specialuse", '\\Junk');
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
     $imaptalk->create("INBOX.Trash", "(USE (\\Trash))");
     $self->assert_equals('ok', $imaptalk->get_last_completion_response());
 
     $imaptalk->create("INBOX.Trash.subfolder");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->setmetadata("INBOX.Trash", "/private/specialuse", undef);
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->setmetadata("INBOX.Trash", "/private/specialuse", '\\Trash');
     $self->assert_equals('ok', $imaptalk->get_last_completion_response());
 }
 

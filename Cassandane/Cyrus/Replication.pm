@@ -1713,4 +1713,47 @@ sub test_forbidden_subfolders
     $self->check_replication('cassandane');
 }
 
+sub test_forbidden_subfolders2
+    :min_version_3_3 :NoAltNameSpace :NoStartInstances
+{
+    my ($self) = @_;
+
+    # can we replicate junk/trash specialuse attributes on a folder
+    # with children to somewhere that forbids them?
+    $self->{replica}->{config}->set(
+        'specialuse_nochildren' => '\\Junk \\Trash'
+    );
+    $self->_start_instances();
+
+    my $imaptalk = $self->{store}->get_client();
+
+    $imaptalk->create("INBOX.Spam");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Spam.subfolder");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Trash");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->create("INBOX.Trash.subfolder");
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    # replicate the folder hierarchy
+    $self->run_replication(user => 'cassandane');
+    $self->check_replication('cassandane');
+    $imaptalk = $self->{store}->get_client();
+
+    # now add the specialuse attributes
+    $imaptalk->setmetadata("INBOX.Spam", "/private/specialuse", '\\Junk');
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    $imaptalk->setmetadata("INBOX.Trash", "/private/specialuse", '\\Trash');
+    $self->assert_equals('ok', $imaptalk->get_last_completion_response());
+
+    # and try to replicate those
+    $self->run_replication(user => 'cassandane');
+    $self->check_replication('cassandane');
+}
+
 1;
