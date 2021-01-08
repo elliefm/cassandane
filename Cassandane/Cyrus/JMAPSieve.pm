@@ -174,6 +174,34 @@ EOF
     $self->assert_str_equals($script, $res->{content});
 }
 
+sub test_sieve_rjbs
+    :min_version_3_3 :needs_component_sieve :needs_component_jmap :JMAPExtensions
+{
+    my ($self) = @_;
+
+    my $script1 = <<EOF;
+keep;
+EOF
+    $script1 =~ s/\r?\n/\r\n/gs;
+
+    my $jmap = $self->{jmap};
+
+    xlog "create script";
+    my $res = $jmap->CallMethods([
+        ['Blob/set', {
+            create => {
+               "sieve" => { content => $script1 }
+            }
+         }, "R0"],
+        ['SieveScript/set', {
+            create => { websieve => { blobId => '#sieve' } },
+            onSuccessActivateScript => '#websieve'
+         }, "R1"],
+    ]);
+    $self->assert_not_null($res);
+    $self->assert_equals(JSON::true, $res->[1][1]{created}{websieve}{isActive});
+}
+
 sub test_sieve_set
     :min_version_3_3 :needs_component_sieve :needs_component_jmap :JMAPExtensions
 {
