@@ -52,7 +52,9 @@ $Data::Dumper::Sortkeys = 1;
 sub new
 {
     my $class = shift;
-    return $class->SUPER::new({ murder => 1, adminstore => 1 }, @_);
+    return $class->SUPER::new({
+        murder => 1, adminstore => 1, deliver => 1,
+    }, @_);
 }
 
 sub set_up
@@ -370,5 +372,79 @@ sub test_rename_with_location
     $backend2_store->select('INBOX');
     $self->assert_str_equals('ok', $backend2_store->get_last_completion_response());
 }
+
+sub test_xfer_user_altns_unixhs
+    :AllowMoves :AltNamespace :UnixHierarchySep
+{
+    my ($self) = @_;
+
+    # XXX need a function to fill an account with stuff!
+
+    # send cassandane a bunch of messages on the original backend
+    my %msgs;
+    my $n_msgs = 30;
+    foreach my $n (1..$n_msgs) {
+        $msgs{$n} = $self->{gen}->generate(subject => "Message $n");
+        $msgs{$n}->set_attribute(uid => $n);
+        $self->{instance}->deliver($msgs{$n}, user => 'cassandane');
+    }
+
+    # fizzbuzz some details
+    my $imaptalk = $self->{backend1_store}->get_client();
+    $imaptalk->select('INBOX');
+    foreach my $n (1..$n_msgs) {
+        my @flags;
+
+        if ($n % 3 == 0) {
+            # fizz
+            $imaptalk->store("$n", '+flags', '(\\Flagged)');
+            $self->assert_str_equals(
+                'ok', $imaptalk->get_last_completion_response()
+            );
+            push @flags, '\\Flagged';
+        }
+        if ($n % 5 == 0) {
+            # buzz
+            $imaptalk->store("$n", '+flags', '(\\Deleted)');
+            $self->assert_str_equals(
+                'ok', $imaptalk->get_last_completion_response()
+            );
+            push @flags, '\\Deleted';
+        }
+
+        $msgs{$n}->set_attribute('flags', \@flags) if scalar @flags;
+    }
+
+    # make sure they're all there before we proceed
+    $self->{store}->set_fetch_attributes('uid', 'flags');
+    $self->check_messages(\%msgs, check_guid => 0, keyed_on => 'uid');
+
+    my $admintalk = $self->{backend1_adminstore}->get_client();
+    my $backend2_servername = $self->{backend2}->get_servername();
+
+    # now xfer the cassandane user to backend2
+    my $ret = $admintalk->_imap_cmd('xfer', 0, {},
+                                    'user/cassandane', $backend2_servername);
+    $self->assert_str_equals(
+        'ok', $admintalk->get_last_completion_response()
+    );
+    # XXX the above is kind of junk because xfer will just go "ok" if it
+    # XXX didn't find the user...
+
+    # messages should be on the other store now
+    $self->{backend2_store}->set_fetch_attributes('uid', 'flags');
+    $self->check_messages(\%msgs, store => $self->{backend2_store},
+                          check_guid => 0, keyed_on => 'uid');
+
+    # fronted should now say the user is on the other store
+    # XXX is there a better way to discover this?
+    my $mailboxes_db = $self->{frontend}->read_mailboxes_db();
+    $self->assert_str_equals($backend2_servername,
+                             $mailboxes_db->{'user.cassandane'}->{server});
+}
+
+# XXX test_xfer_partition
+# XXX test_xfer_mailbox
+# XXX test_xfer_mboxpattern
 
 1;
