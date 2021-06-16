@@ -443,6 +443,22 @@ sub test_xfer_user_altns_unixhs
                              $mailboxes_db->{'user.cassandane'}->{server});
 }
 
+sub populate_user
+{
+    my ($self, $store, $user, $params) = @_;
+
+    die 'params not a hashref' if defined $params and ref $params ne 'HASH';
+
+    my @folders = exists $params->{folders} ? @{$params->{folders}} :
+                  qw(Drafts Junk Sent Trash work work/minutes);
+    my %specialuse;
+    @specialuse{qw(Drafts Junk Sent Trash)} = ();
+
+    my $nmsgs = $params->{nmsgs} // 30;
+
+
+}
+
 # XXX test_xfer_partition
 # XXX test_xfer_mailbox
 # XXX test_xfer_mboxpattern
