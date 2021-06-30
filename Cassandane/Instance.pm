@@ -2385,7 +2385,7 @@ sub read_mailboxes_db
         {
             my ($server, $partition);
 
-            if (index $3, '!' != -1) {
+            if (index($3, '!') != -1) {
                 ($server, $partition) = split /!/, $3;
             }
             else {
