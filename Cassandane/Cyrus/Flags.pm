@@ -241,6 +241,77 @@ sub test_seen_otheruser
 
 #
 # Test that
+#  - the \Seen flag can be set
+#  - the \Seen flag can be cleared again
+#  - other messages don't get the \Seen flag
+#  - once set, it's persistent across sessions
+#
+# Note that we do this test again for \Flagged because
+# \Seen is a special case in the backend.
+#
+# TODO: test that \Seen gets set as a side effect of
+# doing body fetches.
+#
+sub test_seen_sharedmb_nosharedseen
+    :UnixHierarchySep :AltNamespace
+{
+    my ($self) = @_;
+
+    my $folder = 'shared';
+
+    my $admintalk = $self->{adminstore}->get_client();
+    $admintalk->create($folder);
+    $self->assert_str_equals('ok', $admintalk->get_last_completion_response());
+    $admintalk->setacl('shared', 'cassandane' => 'lrswipkxtecdan');
+    $self->assert_str_equals('ok', $admintalk->get_last_completion_response());
+    $admintalk->setmetadata($folder,
+        '/shared/vendor/cmu/cyrus-imapd/sharedseen' => 'false'
+    );
+    $self->assert_str_equals('ok', $admintalk->get_last_completion_response());
+
+
+    my $talk = $self->{store}->get_client();
+    $self->{store}->set_folder("Shared Folders/$folder");
+    $self->{store}->_select();
+    $self->assert_num_equals(1, $talk->uid());
+    $self->{store}->set_fetch_attributes(qw(uid flags));
+
+    xlog $self, "Add two messages";
+    my %msg;
+    $msg{A} = $self->make_message('Message A');
+    $msg{A}->set_attributes(id => 1,
+                            uid => 1,
+                            flags => []);
+    $msg{B} = $self->make_message('Message B');
+    $msg{B}->set_attributes(id => 2,
+                            uid => 2,
+                            flags => []);
+    $self->check_messages(\%msg);
+
+    xlog $self, "Set \\Seen on message A";
+    $talk->store('1', '+flags', '(\\Seen)');
+    $msg{A}->set_attribute(flags => ['\\Seen']);
+    $self->check_messages(\%msg);
+
+    xlog $self, "Clear \\Seen on message A";
+    $talk->store('1', '-flags', '(\\Seen)');
+    $msg{A}->set_attribute(flags => []);
+    $self->check_messages(\%msg);
+
+    xlog $self, "Set \\Seen on message A again";
+    $talk->store('1', '+flags', '(\\Seen)');
+    $msg{A}->set_attribute(flags => ['\\Seen']);
+    $self->check_messages(\%msg);
+
+    xlog $self, "Reconnect, \\Seen should still be on message A";
+    $self->{store}->disconnect();
+    $self->{store}->connect();
+    $self->{store}->_select();
+    $self->check_messages(\%msg);
+}
+
+#
+# Test that
 #  - the \Flagged flag can be set
 #  - the \Flagged flag can be cleared again
 #  - other messages don't get the \Flagged flag
